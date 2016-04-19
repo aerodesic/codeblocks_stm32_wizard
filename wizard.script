@@ -1177,14 +1177,6 @@ function TableIndexOf(table, name) {
 function BeginWizard() {
     local wiz_type = Wizard.GetWizardType();
 
-    CubeLoc_Root = ReplaceMacros(CubeLoc_Root_Var, true);
-
-    // Start out by loading just the processor->folder mapping.
-    // This will raise a dialog asking for the STM32 root folder it it hasn't been defined.
-    CubeData.families <- LoadAllCubeFamilies(CubeLoc_Root);
-    CubeData.boards <- LoadAllCubeBoards(CubeLoc_Root);
-    CubeData.folders <- {}; // Folders are as-yet unknown
-
     if (wiz_type == wizProject) {
         // this is the text that will appear in the start (intro) page
         local intro_msg = _T("Welcome to the STM32 application wizard!\n" +
@@ -1193,6 +1185,15 @@ function BeginWizard() {
 
         // Generic introduction
         Wizard.AddInfoPage(_T("stm32intro"), intro_msg);
+
+        local stm32path_msg = _T("Select the folder containing the STM32 cube folders.\n" +
+                                 "This folder must contain one or more STM32_Cube_FW*\n" +
+                                 "folders.");
+
+        Wizard.AddGenericSelectPathPage(_T("stm32pathPage"),
+                                        stm32path_msg,
+                                        _T("STM32 Cubes location:"),
+                                        _T("$(#stm32root)"));
 
         // Project name and path
         Wizard.AddProjectPathPage();
@@ -1355,6 +1356,23 @@ function SetupTarget(target, is_debug) {
     }
 
     return results;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Called on leaving the SelectPath page
+///////////////////////////////////////////////////////////////////////////////
+function OnLeave_stm32pathPage(fwd)
+{
+    if (fwd)
+    {
+        CubeLoc_Root = Wizard.GetTextControlValue(_T("txtFolder"));
+
+        // Start out by loading just the processor->folder mapping.
+        CubeData.families <- LoadAllCubeFamilies(CubeLoc_Root);
+        CubeData.boards <- LoadAllCubeBoards(CubeLoc_Root);
+        CubeData.folders <- {}; // Folders are as-yet unknown
+    }
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

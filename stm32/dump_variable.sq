@@ -1,0 +1,77 @@
+///////////////////////////////////////////////////////////////////////////////////
+// Some debug stuff
+///////////////////////////////////////////////////////////////////////////////////
+function dumpIndent(indent) {
+    return Spaces.slice(0, indent);
+}
+
+function dumpTable(data, indent) {
+    local str = "{\n";
+
+    foreach (key, value in data) {
+        str += dumpIndent(indent + 4) + dumpKey(key) + " = " + dumpData(value, indent + 4);
+    }
+
+    return str + dumpIndent(indent) + "}";
+}
+
+function dumpArray(data, indent) {
+    local str = "[\n";
+
+    foreach (value in data) {
+        str += dumpIndent(indent + 4) + dumpData(value, indent + 4);
+    }
+
+    return str + dumpIndent(indent) + "]";
+}
+
+function dumpKey(key) {
+    if (typeof(key) == "string") {
+        return key;
+    } else if (typeof(key) == "integer") {
+        return format("[%d]", key);
+    } else {
+        return key.tostring();
+    }
+}
+
+function dumpString(data, indent) {
+    return "\"" + data.tostring() + "\"";
+}
+
+function dumpInstance(data, indent) {
+    return "_T(" + dumpString(data, indent) + ")";
+}
+
+function dumpItem(data, indent) {
+    return format("%s", data.tostring());
+}
+
+function dumpData(data, indent = 0, termination = ",\n") {
+    local str;
+
+    if (typeof(data) == "table") {
+        str = dumpTable(data, indent);
+    } else if (typeof(data) == "array") {
+        str = dumpArray(data, indent);
+    } else if (typeof(data) == "string") {
+       str =  dumpString(data, indent);
+    } else if (typeof(data) == "instance") {
+        str = dumpInstance(data, indent);
+    } else if (data == null) {
+        str = "null";
+    } else {
+        str = dumpItem(data, indent);
+    }
+    return str + termination;
+}
+
+// Emit a value suittable for serialized input
+function emitVariable(var) {
+    return dumpData(var, 0, "\n;");
+}
+
+function dumpVariable(name, data) {
+    LogDebug(_T(name + " <- " + dumpData(data, 0, ";\n")));
+}
+

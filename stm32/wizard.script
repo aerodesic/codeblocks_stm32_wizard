@@ -1,0 +1,2313 @@
+//////////////////////////////////////////////////////////////////////////////////
+//
+// stm32 project wizard
+//
+// Author: Gary Oliver <go@aerodesic.com
+// Copyright 2016, GPL 2.0.
+//
+// This module will handle code generation from a standard STM32 "cube" library base.
+// The user must supply the name of a 'base' folder containing the STM32Cube_FW*
+// folders.  Each are mined for their board, csmis, bsp and processor information.
+// If more than one library exists for a specific 'family', a choice will be
+// presented at some point to select the speciifc library to be used.
+//
+// Data, once mined, is cached into the codeblocks default  config xml.
+//
+//////////////////////////////////////////////////////////////////////////////////
+CubeLoc_Root_Var                <- _T("$(#stm32root)");       // Path to directory containing the STM32Cube* directories
+CubeLoc_Root                    <- _T("");                    // Path to directory containing the STM32Cube* directories
+Cube_Name_Pattern               <- _T("STM32Cube_FW_");       // Pattern of cube folder names
+
+CustomSelection                 <- "<Custom>";                // Name for 'custom' board (squirrel string)
+
+Processor                       <- null;                      // Selected processor (e..g STM32F411CA) (squirrel strings)
+
+Board                           <- null;                      // Selected board or <CustomSelection> (above) (squirrel string)
+RealBoard                       <- null;                      // Actual STM board name
+
+CubeData                        <- {};                        // Master cube data structure:
+                                                              // {
+                                                              //   folders = { <folder> = <contents>, ... },
+                                                              //   families = { <family name> = [ <folder name>, ... ], ... },
+                                                              //   boards = { name, name, ... },
+                                                              // }
+CUBEINFO_VERSION                <- 1;
+
+Cube                            <- null;                      // Selected CUBE data.
+
+Generated_Files                 <- [];                        // A list of tables:
+                                                              // target = "target"; source = "source path"; macros = [macros]
+
+Copied_Files                    <- [];                        // Files that are copied rather than generated
+
+Extra_Include_Paths             <- [];                        // Include paths added to project
+
+                                                              // Uses table to avoid duplications
+Additional_Libraries            <- {};                        // table of { folder = { file = true, file = true ... } }
+
+Macro_List                      <- {};                        // Macros applied to all generated files.
+
+Extra_Defines                   <- [];                        // Extra define symbols desired by packages
+
+// Folders used in project
+User_src_dir                    <- _T("./");                  // User source (.c and .cpp) go here
+User_inc_dir                    <- _T("./");                  // User srouce (.h) go here
+User_project_dir                <- _T("./");                  // Where project config goes
+User_conf_src_dir               <- _T("Config/");             // User source (.c and .cpp) go here
+User_conf_inc_dir               <- _T("Config/");             // User source (.h) go here
+CMSIS_src_dir                   <- _T("Drivers/CMSIS/");      // CMSIS device-specific source files go here
+CMSIS_inc_dir                   <- _T("Drivers/CMSIS/");      // CMSIS device-specific source files go here
+HAL_src_dir                     <- _T("Drivers/HAL/");        // HAL device-specific source files go here
+HAL_inc_dir                     <- _T("Drivers/HAL/");        // HAL device-specific source files go here
+BSP_src_dir                     <- _T("Drivers/BSP/");        // Generated BSP files go here
+BSP_inc_dir                     <- _T("Drivers/BSP/");        // Generated BSP files go here
+BSP_Components_src_dir          <- _T("Drivers/Components/"); // Components for BSP
+BSP_Components_inc_dir          <- _T("Drivers/Components/"); // Components for BSP
+Ld_dir                          <- _T("Link/");               // Link info files
+Dot_C_Mask                      <- "*" + DOT_EXT_C.tostring(); // *.c file mask
+Dot_H_Mask                      <- "*" + DOT_EXT_H.tostring(); // *.h file mask
+
+Segment_Mode_Values             <- [ "rw", "rx", "rwx" ];
+
+// Used for creating indentation or spacing
+Spaces                          <- "                                                        ";
+
+COMPILE_AND_LINK                <- { compile = true, link = true };
+NO_COMPILE_NO_LINK              <- { compile = false, link = false };
+
+// Tells where file contents is located
+STM32_CMSIS_s_folder            <- _T("");  // Computed at cube select time
+STM32_CMSIS_c_filename          <- _T("");  // Computed at cube select time
+STM32_CMSIS_h_folder            <- _T("");  // Computed at cube select time
+STM32_CMSIS_core_folder         <- _T("Drivers/CMSIS/Include/");
+STM32_CMSIS_Lib_folder          <- _T("Drivers/CMSIS/Lib/GCC/");
+STM32_HAL_h_folder              <- _T("");  // Computed at cube select time
+STM32_HAL_c_folder              <- _T("");  // Computed at cube select time
+STM32_HAL_template              <- _T("");  // Computed at cube select time
+STM32_BSP_folder                <- _T("Drivers/BSP/");
+STM32_Components_folder         <- _T("Drivers/BSP/Components/");
+STM32_Thirdparty_folder         <- _T("Middlewares/Third_Party/");
+STM32_ST_folder                 <- _T("Middlewares/ST/");
+STM32_family_name               <- _T("");  // Computed at cube select time
+STM32_family_short_name         <- _T("");  // Computed at cube select time
+
+// List of files *required* for compiling HAL components.  [family] will be replace by appropriate family name
+STM32_HAL_Required              <- { include = [ "[family]_hal_def.h", "[family]_hal.h", "Legacy/stm32_hal_legacy.h" ],
+                                     compile = [ "[family]_hal.c" ] };
+
+// Selected items from dialogs
+Selected_Memory_Segments        <- null;
+Selected_Memory_Segment_Proc    <- null;
+Selected_Optional_Software      <- null; // Last software item selected
+Selected_Min_Heap               <- null;
+Selected_Min_Stack              <- null;
+
+System_basename                 <- _T("");
+
+CubeInfo_Config_Location        <- _T("/stm32_wizard/cubes/");
+
+// Optional software information table
+Include(Wizard.FindTemplateFile(_T("stm32/optional_software.sq")));
+
+// Processor information table
+Include(Wizard.FindTemplateFile(_T("stm32/processor_info.sq")));
+
+// Variable dumping (for debug and serialization)
+Include(Wizard.FindTemplateFile(_T("stm32/dump_variable.sq")));
+
+///////////////////////////////////////////////////////////////////////////////
+// The string entries of these two tables are left in Squirrel string format
+// rather than as a _T() (wxString) because comparison (e.g. '==') never reports
+// a match.  We use these strings as native until the need to be passed to some
+// other Code::Blocks functionality.
+//
+// This table contains the processor information for the cube folders.
+// It's key is the cube folder name; contents contain:
+//
+//    {
+//      // Cube folder containing the useful info
+//      folder = "STM32Cube_FW_F4_V1.1.1",
+//
+//      // processors is populated by scanning the file:
+//      //   /Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32[family]xx.h
+//      // and looking for all lines containing the pattern:
+//      //   #if defined(STM32.*)
+//      // with the STM32.* extracted to this list.  These will be presented
+//      // to the user and a project variable will be set defined for the
+//      // selected processor.  The stm32[family]xx.h, <processor>.h and
+//      // system_stm32[family]xx.h files will be copied to the project
+//      // CMSIS folder.  The system_stm32<famly>xx.c from the
+//      //   /Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates
+//      // folder and the appropriate startup_<processor>.x file from the
+//      //   /Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc
+//      // folder will also be copied to the project CMSIS folder.
+//      families = [ "STM32F401xC",
+//                     " ... ",
+//                     "STM32F479xx" ],
+//
+//      // hal is filled in by scanning the
+//      //    Drivers/STM32F4xx_HAL_Driver/Inc/stm32[family]xx_hal_conf_template.h
+//      // file for all symbols of the form ^#define HAL_xxx_MODULE_ENABLED$
+//      // When the template file is copied, these are removed and made
+//      // project level variables that are checked at compile time.  Note: all
+//      // HAL files are copied to the project HAL folder since they may be later
+//      // enabled and the HAL_xxx variables prevent un-needed code from being
+//      // compiled into the user application.
+//      hal = { compile = {}, include = {} },  // The key in the inner objects contain the
+//                      // 'xxx' component of the HAL system..  The value is a list
+//                      // of files using this symbol.
+//
+//      thirdparty = { ... },  // Table of available Thirdparty components = true
+//
+//      st = { ... },  // Table of available ST components = true
+//
+//      peripherals = [ ... ], // List of peripheral items
+//
+//      libs = [ ... ]  // List of libs found in Drivers/CMSIS/Libs/GCC/
+//
+//      // This is populated by scanning the Drivers/BSP/Components directory
+//      // If selected, a Component copies any .c and .h files to the Components
+//      // project folder.  When the files are copied, be sure to find all references
+//      // to "../Common/" in the .h files and include the included .h file into the
+//      // Components/Common folder.
+//      components [ ... ],
+//
+//      // This item contains all of the names in the Drivers/BSP folder *except*
+//      // the "Components" folder.  The user can select one of the BSP choices to
+//      // add optional components to the project.  Selecting a BSP item results
+//      // all of the .c and .h files being copied to the user's BSP folder.
+//      bsp = [ ... ],
+//    }
+///////////////////////////////////////////////////////////////////////////////
+
+//
+// Load the data structure with the processor list
+// Returns an array of processors for this family
+//
+// folder is relative to the CubeLoc_Root
+//
+function LoadCubeFamilies(cube) {
+
+    local family = GetFamilyFromFolder(cube);
+
+    local filename = _T(CubeLoc_Root  + wxFILE_SEP_PATH +
+                        cube          + wxFILE_SEP_PATH +
+                        "Drivers"     + wxFILE_SEP_PATH +
+                        "CMSIS"       + wxFILE_SEP_PATH +
+                        "Device"      + wxFILE_SEP_PATH +
+                        "ST"          + wxFILE_SEP_PATH +
+                        "STM32"       + _T(family) + "xx" + wxFILE_SEP_PATH +
+                        "Include"     + wxFILE_SEP_PATH +
+                        "stm32"       + _T(family).Lower() + "xx.h");
+
+    local families = [];
+    local buffer = IO.ReadFileContents(filename);
+
+// TODO: recast this as a regular expression search...
+    local eol = buffer.Find(_T("\n"));
+    while (eol >= 0) {
+        local line = buffer.Mid(0, eol); // Capture the line
+
+        line = line.BeforeFirst('\r');   // Remove trailing CR
+        line.Replace(_T(" "), _T(""));   // Remove spaces
+
+        // Remove the line from buffer
+        buffer = buffer.Remove(0, eol + 1);
+
+        if (line.Matches(_T("#ifdefined(STM32*")) || line.Matches(_T("#elifdefined(STM32*"))) {
+            local symstart = line.Find(_T("("));
+            local symend = line.Find(_T(")"));
+            if (symstart >= 0 && symend >= 0 && symend > symstart) {
+                // Add this symbol to the table
+                local family = line.Mid(symstart + 1, symend - symstart - 1).tostring(); // Add as squirrel string
+                families.append(family);
+//print ("Adding family '" + family + "' to families\n");
+            }
+        }
+
+        eol = buffer.Find(_T("\n"));
+    }
+
+    return families;
+}
+
+function LoadCubeFolder(cube, subfolder, skip = null, match = "dirs;keep_dirs;relative;no_recurse", pattern = "*") {
+    local subdir = _T(CubeLoc_Root + wxFILE_SEP_PATH +
+                      cube         + wxFILE_SEP_PATH +
+                      subfolder);
+
+    local items = IO.ReadDirContents(subdir, _T(pattern), _T(match));
+
+    local contents = [];
+
+    for (local i = 0; i < items.GetCount(); ++i) {
+        local name = items.Item(i).tostring();  // Back to squirrel string
+
+        if (skip != name) {
+            contents.append(name);
+        }
+    }
+
+    return contents;
+}
+
+
+//
+// If this is Windows, replace all "/" with "\"
+//
+function FixupPathname(pathname) {
+    // Convert to _T string if needed.
+    if (typeof(pathname) == "string") {
+        pathname = _T(pathname);
+    }
+
+    if (PLATFORM == PLATFORM_MSW) {
+        pathname = pathname.Replace(_T("/"), _T("\\"));
+    }
+
+    return pathname;
+}
+
+function FolderInCube(folder) {
+    return FixupPathname(CubeLoc_Root + "/" + Cube.folder + "/" + folder);
+}
+
+function GetFamilyFromFolder(folder) {
+    local family = null;
+    local parts = GetArrayFromString(_T(folder), _T("_"), true);
+
+    if (parts.GetCount() >= 4) {
+        // Fetch the next to the last field - contains family name
+        family = parts.Item(parts.GetCount() - 2).Upper().tostring(); // Convert back squirrel string
+    }
+
+    return family;
+}
+
+function SelectFilesFromList(list, extension) {
+    local results = [];
+
+    foreach(name in list) {
+        local str_name = _T(name);
+        if (str_name.Right(2).Matches(_T(extension))) {
+            results.append(name);
+        }
+    }
+
+    return results;
+}
+
+//
+// Add library to project
+//
+// pathname is full path to library file
+function AddLibraryToProject(pathname) {
+    pathname = FolderInCube(pathname);
+    local basename = BasenameOf(pathname).tostring();
+    local folder = PathOf(pathname).tostring();
+
+    if (!(folder in Additional_Libraries)) {
+        Additional_Libraries[folder] <- {};
+    }
+
+    Additional_Libraries[folder][basename] <- true;
+}
+
+//
+// Read the cube folder and return it's contents.
+//
+function LoadCubeData(cube) {
+
+    local cubeinfo = LoadCachedCubeData(cube);
+    if (cubeinfo == null || cubeinfo.version != CUBEINFO_VERSION) {
+
+        ShowWarning(_T("Cube data for " + cube + "\n" +
+                       "was not found.  Data will be read and\n" +
+                       "cached for faster access next time."));
+
+        cubeinfo = {};
+
+        cubeinfo.folder      <- cube;
+
+        cubeinfo.families    <- LoadCubeFamilies(cube);
+        cubeinfo.hal         <- LoadCubeHALdependencies(cube);
+     // cubeinfo.components  <- LoadCubeFolder(cube, STM32_Components_folder);
+        cubeinfo.bsp         <- LoadCubeFolder(cube, STM32_BSP_folder, "Components");
+        cubeinfo.libs        <- LoadCubeFolder(cube, STM32_CMSIS_Lib_folder, null, "files;relative;no_recurse", "lib*.a;LIB*.A");
+        cubeinfo.thirdparty  <- ArrayToTable(LoadCubeFolder(cube, STM32_Thirdparty_folder));
+        cubeinfo.st          <- ArrayToTable(LoadCubeFolder(cube, STM32_ST_folder));
+        cubeinfo.peripherals <- []; // Dummy for now
+
+        cubeinfo.version     <- CUBEINFO_VERSION;
+
+        SaveCachedCubeData(cube, cubeinfo);
+    }
+
+    return cubeinfo;
+}
+
+function LoadCachedCubeData(cube) {
+    local results = null;
+
+    local buffer = GetConfigManager().Read(CubeInfo_Config_Location + _T(cube), _T(""))
+    if (buffer != null && buffer.len() != 0) {
+        local cubedata = compilestring("return " + buffer.tostring());
+        results = cubedata();
+    }
+
+    return results;
+}
+
+function SaveCachedCubeData(cube, cubeinfo) {
+
+    GetConfigManager().Write(CubeInfo_Config_Location + _T(cube), _T(emitVariable(cubeinfo)));
+}
+
+//
+// Load all cubes folders into one data structure.
+//
+// The results is a table in the form of:
+//
+//   {
+//     <family name> = [ <folder name>, ... ],
+//     ...
+//   },
+//
+function LoadAllCubeFamilies(folder) {
+    local families = {};
+
+    // Iterate the available directories to use
+    // Note: can't use filespec here for pattern match since it only applies to *FILES* and
+    // we are scanning folders.
+    local dirs = IO.ReadDirContents(folder, _T("*"), _T("dirs;keep_dirs;relative;no_recurse"));
+
+    for (local i = 0; i < dirs.GetCount(); ++i) {
+        local dir = dirs.Item(i); // Convert back to squirrel "string"
+
+        if (dir.Mid(0, Cube_Name_Pattern.len()).Matches(Cube_Name_Pattern)) {
+
+            dir = dir.tostring();
+            local list = LoadCubeFamilies(dir);
+
+            // Add this board for all families loaded
+            foreach (family in list) {
+                if (family in families) {
+                    families[family].append(dir);
+                } else {
+                    families[family] <- [ dir ];
+                }
+            }
+        }
+    }
+
+    return families;
+}
+
+///////////////////////////////////////////////////////////////////////
+//
+// Load the HAL dependency stuff
+//
+///////////////////////////////////////////////////////////////////////
+function LoadCubeHALdependencies(cube) {
+    local table = {};
+
+    local re_groups  = [
+                         regexp(@"(?:@defgroup\s+)([A-Z][A-Za-z0-9_]*)"),
+                         regexp(@"(?:@addtogroup\s+)([A-Z][A-Za-z0-9_]*)"),
+                       ]
+
+    local selections = [
+                         { path = STM32_HAL_h_folder, mask = Dot_H_Mask, type = "include" },
+                         { path = STM32_HAL_c_folder, mask = Dot_C_Mask, type = "compile" },
+                       ];
+
+    foreach (selection in selections) {
+
+        if (!(selection.type in table)) {
+            table[selection.type] <- {};
+        }
+
+        local halfolder = FixupPathname(CubeLoc_Root + "/" + cube + "/" + selection.path);
+
+//LogDebug(_T(format("LoadCubeHALdependencies: Mask '%s'", selection.mask)));
+
+        // Go through all HAL Src files and apply the file to the halitem it contains
+        local files = IO.ReadDirContents(halfolder, _T(selection.mask), _T("files;dirs;relative"));
+
+        for (local i = 0; i < files.GetCount(); ++i) {
+
+            local pathname = FixupPathname(halfolder + files.Item(i));
+            local pathname_str = pathname.tostring();
+
+//LogDebug(_T(format("LoadCubeHALdependencies: Filename '%s'", pathname_str)));
+
+            local buffer = IO.ReadFileContents(pathname);
+
+//LogDebug(_T(format("LoadCubeHALdependencies: read %d bytes", buffer.len())));
+
+            local string_buffer = buffer.tostring();
+
+//LogDebug(_T(format("LoadCubeHALdependencies: string_buffer %d bytes", string_buffer.len())));
+
+            foreach (re in re_groups) {
+
+//LogDebug(_T(format("LoadCubeHALdependencies: starting next re scan")));
+
+                local start = 0;
+                local results;
+
+                do {
+                    results = re.capture(string_buffer, start);
+
+                    if (results != null) {
+                        local value = results[1];
+
+//LogDebug(_T(format("LoadCubeHALdependencies '%s', item at %d to %d", pathname_str, value.begin, value.end - 1)));
+
+                        local item = string_buffer.slice(value.begin, value.end);
+                        if (item.len() != 0) {
+
+//LogDebug(_T(format("LoadCubeHALdependencies: '%s', position %d to %d, item '%s'", pathname_str, value.begin, value.end - 1, item)));
+
+                            // Take the item before the first "_"
+                            item = split(item, "_")[0];
+
+                            // If last two characters are "Ex", remove them.
+                            if (item.slice(item.len() - 2, item.len()) == "Ex") {
+                                item = item.slice(0, item.len() - 2);
+                            }
+
+                            // Must be all upper case
+                            if (item == item.toupper()) {
+                                if (! (item in table[selection.type])) {
+//LogDebug(_T("LoadCubeHALdependencies: adding table for '" + item + "' to '" + selection.type + "'"));
+                                    table[selection.type][item] <- {};
+                                }
+
+//LogDebug(_T("LoadCubeHALdependencies: adding entry for '" + pathname_str + "' in '" + item + "' to '" selection.type + "'"));
+                                table[selection.type][item][pathname_str] <- true;
+                            }
+
+                            start = value.end;
+                        } else {
+                            results = null;
+                        }
+                    }
+                } while (results != null);
+            }
+        }
+    }
+
+//dumpVariable("table before", table);
+
+    // Convert all tables back to list
+    foreach (type, selection in table) {
+        foreach (item, files in selection) {
+            table[type][item] = TableToArray(files);
+        }
+    }
+
+//dumpVariable("table after", table);
+
+    return table;
+}
+
+//
+// Load all cubes board tables
+//
+// The results is a list in the form of:
+//
+// [ name, name, ... ]
+//
+function LoadAllCubeBoards(folder) {
+    local raw_board_list = [];
+
+    // Add the custom item to the list
+    raw_board_list.append(CustomSelection);
+
+    // Iterate the available directories to use
+    // Note: can't use filespec here for pattern match since it only applies to *FILES* and
+    // we are scanning folders.
+    local dirs = IO.ReadDirContents(folder, _T("*"), _T("dirs;keep_dirs;relative;no_recurse"));
+
+    for (local i = 0; i < dirs.GetCount(); ++i) {
+        local dir = dirs.Item(i); // Convert back to squirrel "string"
+
+        if (dir.Mid(0, Cube_Name_Pattern.len()).Matches(Cube_Name_Pattern)) {
+
+            dir = dir.tostring();
+            local list = LoadCubeFolder(dir, STM32_BSP_folder, "Components");
+
+            // Add this board for all processors loaded
+            foreach (board in list) {
+                raw_board_list.append(board);
+            }
+        }
+    }
+
+    // Sort list
+    raw_board_list.sort(sortalpha);
+
+    local pruned_board_list = [];
+
+    if (raw_board_list.len() != 0) {
+        local last_board = raw_board_list[0];
+        pruned_board_list.append(last_board);
+
+        for (local index = 1; index < raw_board_list.len(); ++index) {
+            if (raw_board_list[index] != last_board) {
+                last_board = raw_board_list[index];
+                pruned_board_list.append(last_board);
+            }
+        }
+    }
+
+    return pruned_board_list;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////
+// Handle generated (and copied) files that move to
+// the projects folders.
+//////////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////
+// Add one file to the generated list
+//
+// target_folder  - where in the project the file is place
+// file_path      - the path to get the file
+// build_flags    - { compile and link flags }
+// alternate      - alternate name of file
+// macro_list     - macros to apply to the file as it is copied
+//                  Use {} to force a generation rather than copy.
+//////////////////////////////////////////////////////////////////////////////////
+function AddProjectFile(target_folder,
+                        file_path,
+                        build_flags = NO_COMPILE_NO_LINK,
+                        macro_list = null,
+                        alternate = null,
+                        generated = false) {
+
+    if (generated) {
+        Generated_Files.append({ target = target_folder,
+                                 source = file_path,
+                                 alternate_name = alternate,
+                                 build_flags = build_flags,
+                                 macros = macro_list,
+                                 generated = true,
+                               });
+    } else {
+        local source_path = file_path;
+
+        // If not a rooted path nor a special <> pseudo file, add Cube location to folder
+        local leading_char = source_path.Mid(0, 1);
+
+        if (!leading_char.Matches(wxFILE_SEP_PATH)) {
+            source_path = FolderInCube(source_path);
+        }
+
+        if (macro_list == null) {
+            Copied_Files.append({ target = target_folder,
+                                  source = source_path,
+                                  alternate = alternate });
+        } else {
+            Generated_Files.append({ target = target_folder,
+                                     source = source_path,
+                                     alternate_name = alternate,
+                                     build_flags = build_flags,
+                                     macros = macro_list });
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// AddProjectFiles
+//
+// Add a list of files to the projects - no macros processed
+//
+// target_folder   - project folder to receive the file
+// source_folder   - folder containing file to be copied
+// selected_files  - list of files to be copied
+// build_flags     - compile and link flags
+// macro_list      - list of macros to be applied to file being copied
+//////////////////////////////////////////////////////////////////////////////////
+function AddProjectFiles(target_folder,
+                         source_folder,
+                         selected_files,
+                         build_flags = NO_COMPILE_NO_LINK,
+                         macro_list = null) {
+
+    foreach (file in selected_files) {
+        AddProjectFile(target_folder, source_folder + wxFILE_SEP_PATH + file, macro_list, build_flags);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// AddProjectFilesFromFolder
+//
+// Extract all files from the specified folder and add them to the target,
+// including all recursive folders.
+//
+// "template" can be:
+//    null     - ignore template files and process normally
+//    { match = "<pattern>", replace = "<replace>", target = <where to put file> ]
+//
+//    if target parameter is null, file is ignored, otherwise it is a
+//    folder within the user's project stucture.
+//////////////////////////////////////////////////////////////////////////////////
+function AddProjectFilesFromFolder(target_folder,
+                                   source_folder,
+                                   mask = _T("*"),
+                                   template = null,
+                                   build_flags = NO_COMPILE_NO_LINK,
+                                   macro_list = null,
+                                   dirflags = _T("dirs;files;relative")) {
+
+    local source_folder_absolute;
+
+    if (source_folder.Mid(0, 1).Matches(wxFILE_SEP_PATH)) {
+        source_folder_absolute = source_folder;
+    } else {
+        source_folder_absolute = FolderInCube(source_folder);
+    }
+
+    local files = IO.ReadDirContents(FixupPathname(source_folder_absolute), mask, dirflags);
+
+    for (local i = 0; i < files.GetCount(); ++i) {
+        local file = files.Item(i);
+
+        local target;
+        local alternate = null;
+
+        if (template == null || file.Find(_T(template.match)) < 0) {
+            target = target_folder + PathOf(file) + "/";
+        } else {
+            alternate = BasenameOf(file);
+            if ("replace" in template) {
+                alternate.Replace(_T(template.match), _T(template.replace));
+            }
+
+            if ("target" in template && template.target != null) {
+                target = template.target;
+            }
+
+            // Force using global macro list if one not defined already
+            if (macro_list == null) {
+                macro_list = Macro_List;
+//dumpVariable("macro_list applied to '" + file + "'", macro_list);
+//if ("stm32fxxx.h" in macro_list) LogDebug(_T("stm32fxxx.h found in macro list for '" + file + "'"));
+            }
+        }
+
+        local source = source_folder_absolute + file;
+
+        if (target != null) {
+            // Remove the leading folders and make that part of the target_folder
+            AddProjectFile(FixupPathname(target), FixupPathname(source), build_flags, macro_list, alternate);
+        }
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Choose the processor
+///////////////////////////////////////////////////////////////////////////////
+function SelectProcessor(processor) {
+
+    Processor = processor;
+
+//LogDebug(_T("SelectProcessor '" + Processor + "'"));
+
+    DefineMacro("[PROCESSOR]", _T(Processor));
+
+    local family = GetProcessorOption(Processor, "family", "UNKNOWN");
+    DefineMacro("[PROCESSOR_FAMILY]", _T(family));
+
+    // Fetch the cube folder that uses this configuration
+    local cubenames = CubeData.families[family];
+
+    if (cubenames.len() == 1) {
+        // Only one selection for cube names, then choose it
+        SelectCube(cubenames[0]);
+    } else {
+        // Don't know Cube selection yet - leave it undecided
+        Cube = null;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Choose the board type
+///////////////////////////////////////////////////////////////////////////////
+function SelectBoard(board) {
+    // Real board name
+    RealBoard = board;
+
+    // Name used for looking in Boards table
+    local tboard = _T(board);
+    tboard.Replace(_T("-"), _T("_"));
+    Board = tboard.tostring();
+    if (Board.len() == 0) {
+        Board = null;
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Choose Cube
+///////////////////////////////////////////////////////////////////////////////
+function SelectCube(cube) {
+
+//LogDebug(_T("SelectCube: '" + cube + "'"));
+
+    local family      = GetFamilyFromFolder(cube);
+    if (family != null) {
+        STM32_family_short_name = _T(family);
+        local cubelocname = _T("STM32") + STM32_family_short_name + _T("xx");
+        local cubelocsys  = _T("system_stm32") + STM32_family_short_name.Lower() + _T("xx.c");
+
+        System_basename = cubelocname.Lower();
+
+        STM32_CMSIS_s_folder     = FixupPathname("Drivers/CMSIS/Device/ST/" + cubelocname + "/Source/Templates/gcc/");
+        STM32_CMSIS_c_filename   = FixupPathname("Drivers/CMSIS/Device/ST/" + cubelocname + "/Source/Templates/" + cubelocsys);
+        STM32_CMSIS_h_folder     = FixupPathname("Drivers/CMSIS/Device/ST/" + cubelocname + "/Include/");
+        STM32_HAL_h_folder       = FixupPathname("Drivers/" + cubelocname + "_HAL_Driver/Inc/");
+        STM32_HAL_c_folder       = FixupPathname("Drivers/" + cubelocname + "_HAL_Driver/Src/");
+        STM32_HAL_template       = FixupPathname(STM32_HAL_h_folder + cubelocname.Lower() + "_hal_conf_template.h");
+        STM32_family_name        = cubelocname.Lower();
+
+        // Macros used to edit file names in the Optional_Software inclusion
+
+        DefineMacro("[family]", STM32_family_short_name.Lower());
+        DefineMacro("[FAMILY]", STM32_family_short_name.Upper());
+
+        // Define empty contents for MAIN_xx macros
+        DefineMacro("[MAIN_INCLUDES]", _T(""));
+        DefineMacro("[MAIN_BEFORE]", _T(""));
+        DefineMacro("[MAIN_CONTENTS]", _T(""));
+        DefineMacro("[MAIN_AFTER]", _T(""));
+        DefineMacro("[MAIN_INITIALIZE_HARDWARE]", _T("\n"));
+
+        // Load the cube data for this one if needed
+        if (! (cube in CubeData.folders)) {
+            // Load this cube data folder contents
+            CubeData.folders[cube] <- LoadCubeData(cube);
+        }
+
+//dumpVariable("CubeData.folders['" + cube + "']", CubeData.folders[cube]);
+
+        // Select the appropriate Cube data elements.
+        Cube = CubeData.folders[cube];
+    }
+
+    return family != null;
+}
+
+// Converts single selection to squirrel string
+function EditSingleSelection(selection) {
+    if (selection != _T("")) {
+
+        local end = selection.Find(_T(";"));
+        if (end > 0) {
+            selection = selection.Mid(0, end);
+        }
+    }
+
+    return selection.tostring();
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+//
+// Generate a file from source path and edit any resources necessary.
+// Returns the project_file_path;<contents>t
+//
+//////////////////////////////////////////////////////////////////////////////////
+
+function GenerateFile(info) {
+    local project_dir = info.target;
+    local source_path = info.source;
+    local disposition = info.build_flags;
+    local macros = info.macros;
+    local alternate_name = info.alternate_name;
+
+    // Convert source_path if necessary
+    if (typeof(source_path) == "string") {
+        source_path = _T(source_path);
+    }
+
+    local buffer;
+
+    if ("generated" in info) {
+        buffer = source_path;
+    } else {
+        // Read the contents of the file.
+        buffer = IO.ReadFileContents(source_path);
+    }
+
+    // Edit in local symbols if necessary
+    if (macros != null) {
+        foreach (name, contents in macros) {
+            buffer.Replace(_T(name), contents);
+        }
+    }
+
+    local output_name = alternate_name;
+    if (output_name == null) {
+        output_name = BasenameOf(source_path);
+    }
+
+    return FixupPathname(project_dir + wxFILE_SEP_PATH + output_name + _T(";") + buffer);
+}
+
+//
+// GenerateHALconfiguration()
+//
+// Generate the hal configuration file
+//
+// Open the template file and copy it all but remove all "#define HAL_xxx_MODULE_ENABLED"
+// and replace with a list of "#define" or "#undef" per the selection of HAL items in
+// our configuration.
+//
+function GenerateHALconfiguration(halconfig, usefullLL) {
+
+    local fullpath = FolderInCube(STM32_HAL_template);
+
+    local buffer = IO.ReadFileContents(fullpath);
+
+//LogDebug(_T(format("GenerateHALconfiguration: len = %d", buffer.len())));
+
+    // The start of the block to replace
+    local token = _T("#define HAL_MODULE_ENABLED");
+
+    // Create replacement buffer
+    local defines = token + _T("\n"); // Add back the main module define value
+    defines += _T("#include \"configuration.h\"\n");
+
+    // Make a copy of the HAL table and sort it
+    local hal_list = TableToArray(halconfig);
+    hal_list.sort(sortalpha);
+
+    foreach (halname in hal_list) {
+        local fullname = "HAL_" + halname + "_MODULE_ENABLED";
+
+        if (halconfig[halname]) {
+            defines += _T("#define " + fullname + "\n");
+        } else {
+            defines += _T("#undef " + fullname + "\n");
+        }
+    }
+
+    if (usefullLL) {
+        defines += _T("#define USE_FULL_LL\n");
+    } else {
+        defines += _T("#undef USE_FULL_LL\n");
+    }
+
+    // Edit the template fo remove all "#define HAL_xxx_MODULE_ENABLED" values.
+    // and replace then with our generated defines, leaving the remainder of
+    // the file untouched.
+    local start = buffer.Find(token);
+    local return_buffer = buffer;
+    if (start >= 0) {
+        local end = buffer.FindNext(_T("/*"), start);
+//LogDebug(_T(format("GenerateHALconfiguration: boundaries: %d to %d", start, end)));
+        if (end >= 0) {
+            return_buffer = _T(buffer.Mid(0, start).tostring() +
+                               defines.tostring() +
+                               buffer.Right(buffer.len() - end).tostring());
+        }
+    }
+
+    local target_name = BasenameOf(fullpath);
+    target_name.Replace(_T("_template"), _T(""));
+
+    return  [ {
+        target = User_conf_inc_dir.tostring(),
+        alternate = target_name.tostring(),
+        source = return_buffer.tostring(),
+        build_flags = NO_COMPILE_NO_LINK,
+    } ];
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// TableToArray
+//
+// Convert a Table to a list [] of strings
+//
+// table   - to be converted
+//
+// Return an array
+//////////////////////////////////////////////////////////////////////////////////
+function TableToArray(table) {
+    local array = [];
+
+    foreach (name, value in table) {
+        array.append(name);
+    }
+
+    return array;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// ArrayToTable
+//
+// Convert an Array to a table { name = <value> }
+//
+// array   - to be converted
+//
+// Return a table
+//////////////////////////////////////////////////////////////////////////////////
+function ArrayToTable(array, value = true) {
+    local table = {};
+
+    foreach (name in array) {
+        table[name] <- value;
+    }
+
+    return table;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// ArrayStringToArray
+//
+// Convert an ::ArrayString to a list [] of strings
+//
+// array            - arraystring to convert
+//
+// Returns list of strings
+//////////////////////////////////////////////////////////////////////////////////
+function ArrayStringToArray(array) {
+    local list = [];
+
+    for (local i = 0; i < array.GetCount(); ++i) {
+        list.append(array.Item(i).tostring());
+    }
+
+    return list;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// ArrayStringToTable
+//
+// Create a 'table' from the array string, with all values set to <value>
+//////////////////////////////////////////////////////////////////////////////////
+function ArrayStringToTable(array, value = true) {
+    local table = {};
+
+    for (local i = 0; i < array.GetCount(); ++i) {
+        table[array.Item(i).tostring()] <- value;
+    }
+
+    return table;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// ArrayToArrayString
+//
+// Convert an array to an ::ArrayString of strings
+//
+// array - array to convert
+//
+// Returns ::ArrayString of strings
+//////////////////////////////////////////////////////////////////////////////////
+function ArrayToArrayString(array) {
+
+    local arraystring = ::wxArrayString();
+
+    foreach (item in array) {
+        if (typeof(item) == "string") {
+            arraystring.Add(_T(item), 1);
+        } else {
+            arraystring.Add(item, 1);
+        }
+    }
+    return arraystring;
+}
+
+function TableToArrayString(table, sortmethod = null) {
+
+    local array = [];
+
+    // Convert to array of strings
+    foreach (key, value in table) {
+        array.append(key.tostring());
+    }
+
+    // sort if necessary
+    if (sortmethod != null) {
+        array.sort(sortmethod);
+    }
+
+    // convert to an arraystring of _T(strings)
+    local arraystring = ::wxArrayString();
+
+    foreach (item in array) {
+        arraystring.Add(_T(item), 1);
+    }
+
+    return arraystring;
+}
+
+function SelectedTableToArrayString(table) {
+    local arraystring = ::wxArrayString();
+
+    foreach (key, selected in table) {
+        if (selected) {
+            if (typeof(key) == "string") {
+                arraystring.Add(_T(key), 1);
+            } else {
+                arraystring.Add(key, 1);
+            }
+        }
+    }
+
+    return arraystring;
+}
+
+
+function sortalpha(a,b) {
+    if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+//function sortnumeric(a,b) {
+//    if (a.tointeger() < b.tointeger()) {
+//        return -1;
+//    } else if (a.tointeger() > b.tointeger()) {
+//        return 1;
+//    } else {
+//        return 0;
+//    }
+//}
+
+function IsInArray(item, list) {
+    foreach(cell in list) {
+        if (item == cell) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// StringToInteger
+// Convert a string to an integer, being aware of 0x hex numbers.
+//////////////////////////////////////////////////////////////////////////////////
+function StringToInteger(str) {
+    local value;
+
+    if (str.slice(0,2) == "0x") {
+        // Convert hex
+        value = 0;
+        foreach (ch in str.slice(2).tolower()) {
+            // For each char in string
+            if (ch >= '0'  && ch <= '9') {
+                value = value * 16 + ch - '0';
+            } else if (ch >= 'a' && ch <= 'f') {
+                value = value * 16 + ch - 'a' + 10;
+            } else {
+                break;
+            }
+        }
+    } else {
+        value = str.tointeger();
+    }
+    return value;
+}
+
+
+
+//////////////////////////////////////////////////////////////////////////////////
+// GetNameList
+//
+// Convert a list to a string of orignal strings delimited by ';'
+//
+// table            - list to convert
+//
+// Returns a concatenated string with ';' between original list items
+//////////////////////////////////////////////////////////////////////////////////
+function GetNameList(table) {
+    local list = "";
+
+    foreach (item in table) {
+        if (list.len() != 0) {
+            list += ";";
+        }
+        if (typeof(item) == "table") {
+            list += item.name;
+        } else if (typeof(item) == "string") {
+            list += item;
+        } else {
+            list += item.tostring();
+        }
+    }
+
+    return _T(list);
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+// TableIndexOf
+//
+// Find the index of a string within a table list of strings.
+//
+// table          - input table of strings
+// name           - item name to match
+//
+// Returns index of matching entry or -1 if no match
+/////////////////////////////////////////////////////////////////////////////////
+function TableIndexOf(table, name) {
+    local found = -1;
+    for (local index = 0; found < 0  && index < table.len(); ++index) {
+        if (name.Matches(_T(table[index].name))) {
+            found = index;
+        }
+    }
+
+    return found;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// All starts here.  Construct pages that drive the project creation.
+///////////////////////////////////////////////////////////////////////////////
+function BeginWizard() {
+    local wiz_type = Wizard.GetWizardType();
+
+    CubeLoc_Root = ReplaceMacros(CubeLoc_Root_Var, true);
+
+    // Start out by loading just the processor->folder mapping.
+    // This will raise a dialog asking for the STM32 root folder it it hasn't been defined.
+    CubeData.families <- LoadAllCubeFamilies(CubeLoc_Root);
+    CubeData.boards <- LoadAllCubeBoards(CubeLoc_Root);
+    CubeData.folders <- {}; // Folders are as-yet unknown
+
+    if (wiz_type == wizProject) {
+        // this is the text that will appear in the start (intro) page
+        local intro_msg = _T("Welcome to the STM32 application wizard!\n" +
+                             "This wizard will guide you to create a new STM32 application.\n\n" +
+                             "Please click \"Next\" to proceed.");
+
+        // Generic introduction
+        Wizard.AddInfoPage(_T("stm32intro"), intro_msg);
+
+        // Project name and path
+        Wizard.AddProjectPathPage();
+
+        // Choose compiler
+        Wizard.AddCompilerPage(_T(""), _T("arm*"), true, true);
+
+        // Add Board Support selection if needed
+        //Wizard.AddPage(_T("boardPanel"));
+        // For now only make processor selection
+        SelectBoard(CustomSelection);
+
+        // Start by choosing processor
+        Wizard.AddPage(_T("processorPanel"));
+
+        // Add options notebook - populate it when it starts
+        Wizard.AddPage(_T("optionsPanel"));
+
+        // Request a summary page
+        Wizard.AddPage(_T("summaryPanel"));
+    }
+    else if (wiz_type == wizTarget) {
+        local intro_msg = _T("Welcome to the new stm32 target wizard!\n" +
+                             "When you 're ready to proceed, please click \"Next\"...");
+        Wizard.AddInfoPage(_T("stm32info"), intro_msg);
+        SelectBoard(CustomSelection);
+
+        // Start by choosing processor
+        Wizard.AddPage(_T("processorPanel"));
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Take all the data and build the project.
+///////////////////////////////////////////////////////////////////////////////
+function SetupProject(project) {
+    local target;
+    local i;
+
+    // Set PCH mode for objdir so we don't store stuff in the (possibly
+    // protected) source directory of the CUBE folders.
+    project.SetModeForPCH(pchObjectDir);
+
+    // enable compiler warnings (project-wide)
+    WarningsOn(project, Wizard.GetCompilerID());
+
+    // Add subdirectories for includes
+    foreach (path in Extra_Include_Paths) {
+        project.AddIncludeDir(path);
+    }
+
+    // Define a symbol for the processor class
+    project.AddCompilerOption(_T("-D") + _T(GetProcessorOption(Processor, "family", "UNKNOWN")));
+
+    // Create optional defines for the processor
+    foreach (define in GetProcessorOption(Processor, "defines", [])) {
+        project.AddCompilerOption(_T("-D") + _T(define));
+    }
+
+    foreach (define in Extra_Defines) {
+        project.AddCompilerOption(_T("-D") + _T(define));
+    }
+
+    // Add compiler options
+    foreach (option in GetProcessorOption(Processor, "ccoptions", [])) {
+        project.AddCompilerOption(_T(option));
+    }
+
+    project.AddCompilerOption(_T("-fno-common"));
+
+    // If exists, add 'arch' to compiler and linker
+    local arch = GetProcessorOption(Processor, "arch");
+    if (arch != null) {
+        project.AddCompilerOption(_T("-march=") + _T(arch));
+        project.AddLinkerOption(_T("-march=") + _T(arch));
+    }
+
+    project.AddCompilerOption(_T("-mcpu=") + _T(GetProcessorOption(Processor, "cpu", "UNKNOWNcpu")));
+
+    // Add linker options
+    project.AddLinkerOption(_T("-Wl,-Map,$(TARGET_OUTPUT_DIR)$(TARGET_OUTPUT_BASENAME).map"));
+    project.AddLinkerOption(_T("-T Link/" + _T(Processor).Lower() + ".ld"));
+
+    // Add library folders in the Additional_Libraries structure
+    foreach (folder, files in Additional_Libraries) {
+        project.AddLinkerOption(_T("-L" + _T(folder)));
+
+        // Add the files
+        foreach (file, value in files) {
+            project.AddLinkerOption(_T("-l ") + _T(file).Remove(0, 3).RemoveLast(2));
+        }
+    }
+
+    project.AddLinkerOption(_T("-mcpu=") + _T(GetProcessorOption(Processor, "cpu", "UNKNOWNcpu")));
+
+    foreach (option in GetProcessorOption(Processor, "ldoptions", [])) {
+        project.AddLinkerOption(_T(option));
+    }
+
+    // We setup the targets using SetupTarget() which is conveniently called by Code::Blocks
+    // if we register this wizard as wizTarget type :)
+    // This means that this very wizard can be used both as wizProject *and* as wizTarget ;)
+
+    // Setup for Release version
+    target = project.GetBuildTarget(_T("Release"));
+    if (!IsNull(target)) {
+        SetupTarget(target, false);
+    }
+
+    // setup target for Debug version
+    target = project.GetBuildTarget(_T("Debug"));
+    if (!IsNull(target)) {
+        SetupTarget(target, true);
+    }
+
+    // Fix up .s and .S files
+    for (i = 0; i < project.GetFilesCount(); i++) {
+        if ((project.GetFile(i).relativeFilename.Matches(_T("*S"))) ||
+            (project.GetFile(i).relativeFilename.Matches(_T("*s")))) {
+
+            project.GetFile(i).compile = true;
+            project.GetFile(i).link = true;
+        }
+    }
+    // Tell menu scripts this is an STM32 project
+    project.SetVar(_T("STM32_PROJECT"), _T("yes"), false);
+
+    // all done!
+    return true;
+}
+
+//
+//------------------------------------------------------------------------------
+//
+function SetupTarget(target, is_debug) {
+    local results = true;
+
+    if (IsNull(target)) {
+        results = false;
+    } else {
+        local project = target.GetParentProject();
+
+        local targetName = target.GetTitle();
+
+        local projectname = GetProjectManager().GetActiveProject().GetTitle();
+
+        target.SetTargetType(ttConsoleOnly);
+
+        target.SetTargetFilenameGenerationPolicy(1, 1);
+        target.SetOutputFilename(targetName + wxFILE_SEP_PATH + projectname + _T(".elf"));
+
+        target.SetObjectOutput(targetName);
+
+        if (is_debug) {
+            // enable debugging symbols for this target
+            DebugSymbolsOn(target, Wizard.GetCompilerID());
+        } else {
+            OptimizationsOn(target, Wizard.GetCompilerID());
+        }
+    }
+
+    return results;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// boardPanel dialogs
+///////////////////////////////////////////////////////////////////////////////
+function OnEnter_boardPanel(fwd) {
+//LogDebug(_T("OnEnter_boardPanel"));
+
+    local boards = clone CubeData.boards;
+    boards.sort(sortalpha);
+
+    Wizard.FillContainerWithStringsFromArray(_T("boardPanelList"), ArrayToArrayString(boards));
+    if (RealBoard != null) {
+        Wizard.SetContainerStringSelection(_T("boardPanelList"), _T(RealBoard));
+    }
+}
+
+function OnLeave_boardPanel(fwd) {
+//LogDebug(_T("OnLeave_boardPanel"));
+
+    local rc = true;
+
+    if (fwd) {
+        if (Board == null) {
+            ShowWarning(_T("You must select a board."));
+            rc = false;
+        }
+    }
+
+    return rc;
+}
+
+// Remember if on of the boards is selected.
+function OnClick_boardPanelList() {
+
+//LogDebug(_T("OnClick_boardPanelList"));
+
+    SelectBoard(EditSingleSelection(Wizard.GetListboxStringSelections(_T("boardPanelList"))));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Choose the processor type for this board
+///////////////////////////////////////////////////////////////////////////////
+function OnEnter_processorPanel(fwd) {
+
+    if (fwd) {
+//LogDebug(_T("OnEnter_processorPanel"));
+
+        local families = GetFamiliesForBoard(Board);
+        families.sort(sortalpha);
+
+        Wizard.SetTextControlValue(_T("processorPanelTitle"), _T("Select a processor for " + RealBoard));
+        Wizard.FillContainerWithStringsFromArray(_T("processorPanelProcessorFamilyCombo"),
+                                                 ArrayToArrayString(families));
+
+        // Pre-select the first item if nothing yet selected.
+        if (families.len() != 0) {
+
+            Wizard.SetContainerStringSelection(_T("processorPanelProcessorFamilyCombo"), _T(families[0]));
+            local processors = GetProcessorsForFamily(families[0]);
+
+            if (processors.len() > 0) {
+
+                // Fill specific processor combo with options
+                Wizard.FillContainerWithStringsFromArray(_T("processorPanelProcessorCombo"),
+                                                          ArrayToArrayString(processors));
+                // Select the first one
+                Wizard.SetContainerStringSelection(_T("processorPanelProcessorCombo"),
+                                                   _T(processors[0]));
+                if (processors.len() == 1) {
+                    // Load the segment combo from the only choice
+                    LoadProcessorMemoryInformation(processors[0]);
+                }
+            }
+
+            // Load possible cube components
+            LoadProcessorCubeCombo(families[0]);
+        }
+
+        // Load the combo used for new segment definition
+        Wizard.FillContainerWithStringsFromArray(_T("processorPanelSegmentEntryMode"),
+                                                 ArrayToArrayString(Segment_Mode_Values));
+
+    }
+}
+
+function LoadProcessorMemoryInformation(processor) {
+    if (processor != null && processor.len() != 0) {
+        local table = BuildMemorySegments(processor);
+        Wizard.FillListctrlWithData(_T("processorPanelSegmentList"), table.columns, table.data);
+
+        local minheap = Selected_Min_Heap ? Selected_Min_Heap : GetProcessorOption(processor, "minheap", 0);
+        local minstack = Selected_Min_Stack ? Selected_Min_Stack : GetProcessorOption(processor, "minstack", 0);
+
+        // Add heap/stack settings
+        Wizard.SetTextControlValue(_T("processorPanelMinHeapText"),
+                                   _T(format("0x%08x", minheap)));
+
+        Wizard.SetTextControlValue(_T("processorPanelMinStackText"),
+                                   _T(format("0x%08x", minstack)));
+    }
+}
+
+function BuildMemorySegments(processor) {
+    if (Selected_Memory_Segments == null || Selected_Memory_Segment_Proc != processor) {
+       Selected_Memory_Segments <- {};
+       foreach (name, segment in GetProcessorSegments(processor)) {
+           Selected_Memory_Segments[name] <- segment;
+       }
+       Selected_Memory_Segment_Proc = processor;
+    }
+
+    local arraystring = ::wxArrayString();
+
+    // Preload a list of memory segments
+    local columns = ::wxArrayString();
+    columns.Add(_T(format("Name\t%d\t%d", wxLIST_FORMAT_LEFT, 3)), 1);
+    columns.Add(_T(format("Base\t%d\t%d", wxLIST_FORMAT_LEFT, 2)), 1);
+    columns.Add(_T(format("Size\t%d\t%d", wxLIST_FORMAT_LEFT, 2)), 1);
+    columns.Add(_T(format("Mode\t%d\t%d", wxLIST_FORMAT_LEFT, 1)), 1);
+
+    local data = ::wxArrayString();
+    foreach (name, value in Selected_Memory_Segments) {
+        data.Add(_T(name), 1);
+        data.Add(_T(format("0x%08x", value.base)), 1);
+        data.Add(_T(format("0x%08x", value.size)), 1);
+        data.Add(_T(value.mode), 1);
+    }
+
+    return { columns = columns, data = data };
+}
+
+function OnLeave_processorPanel(fwd) {
+
+//LogDebug(_T("OnLeave_processorPanel"));
+
+    local rc = true;
+    if (fwd) {
+        local processor = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelProcessorCombo"))).tostring();
+        if (processor == null || processor.len() == 0) {
+            // Bitch about no selection
+            ShowWarning(_T("You must select a processor."));
+            rc = false;
+        } else {
+            // Make this the one to use
+            SelectProcessor(processor);
+
+            // See if on is selected in the combo
+            if (Cube == null) {
+                local cube = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelCubeCombo"))).tostring();
+                if (cube == null || cube.len() == 0 || !SelectCube(cube)) {
+                    ShowWarning(_T("Please select a Cube file."));
+                    rc = false;
+                }
+            }
+        }
+    }
+
+    if (rc) {
+        // Capture the selected heap/stack sizes
+        local minheap = StringToInteger(Wizard.GetTextControlValue(_T("processorPanelMinHeapText")).tostring());
+        local minstack = StringToInteger(Wizard.GetTextControlValue(_T("processorPanelMinStackText")).tostring());
+
+        if (minheap != GetProcessorOption(Processor, "minheap", 0)) {
+            Selected_Min_Heap = minheap;
+        }
+
+        if (minstack != GetProcessorOption(Processor, "minstack", 0)) {
+            Selected_Min_Stack = minstack;
+        }
+    }
+
+    return rc;
+}
+
+// A processor family has been selected
+function OnClick_processorPanelProcessorFamilyCombo() {
+//LogDebug(_T("OnClick_processorPanelProcessorFamilyCombo"));
+
+    local family = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelProcessorFamilyCombo"))).tostring();
+
+//LogDebug(_T("OnClick_processorPanelProcessorFamilyCombo: '" + family + "'"));
+
+    local processors = GetProcessorsForFamily(family);
+
+    // Fill specific processor combo with options
+    Wizard.FillContainerWithStringsFromArray(_T("processorPanelProcessorCombo"),
+                                                 ArrayToArrayString(processors));
+
+    if (processors.len() > 0) {
+        // Load the specific item now
+        LoadProcessorMemoryInformation(processors[0]);
+        // Put it in the specific combo
+        Wizard.SetContainerStringSelection(_T("processorPanelProcessorCombo"), _T(processors[0]));
+        Processor = processors[0];
+    } else {
+        // Plug the processor combo to say undefined
+        Wizard.SetContainerStringSelection(_T("processorPanelProcessorCombo"), _T("Unknown"));
+    }
+
+    // Load possible cube components
+    LoadProcessorCubeCombo(family);
+}
+
+// A specific processor was selected
+function OnClick_processorPanelProcessorCombo() {
+    Processor = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelProcessorCombo"))).tostring();
+    LoadProcessorMemoryInformation(Processor);
+}
+
+function LoadProcessorCubeCombo(family) {
+    if (family != null && family != "") {
+        // If a specific processor, change it to the processor family
+        if (family in Processors && "family" in Processors[family]) {
+            family = Processors[family].family;
+        }
+
+        local cubes = CubeData.families[family];
+
+        if (cubes.len() != 1) {
+            Wizard.FillContainerWithStringsFromArray(_T("processorPanelCubeCombo"), ArrayToArrayString(cubes));
+            Wizard.ShowWindow(_T("processorPanelCubeCombo"), true);
+//LogDebug(_T("ShowWindow 'processorPanelCubeCombo' true"));
+        } else {
+            // Select the one and only cube and leave combo off
+            Wizard.ShowWindow(_T("processorPanelCubeCombo"), false);
+//LogDebug(_T("ShowWindow 'processorPanelCubeCombo' false"));
+            SelectCube(cubes[0]);
+        }
+    }
+}
+
+function OnClick_processorPanelSegmentList() {
+    // Copy the selected values to the edit area
+    local selections = Wizard.GetContainerStringSelectionsAsArray(_T("processorPanelSegmentList"));
+
+    local selection;
+
+    if (selections.GetCount() > 0) {
+        selection = selections.Item(0).tostring();
+        Wizard.SetTextControlValue(_T("processorPanelSegmentEntryName"),
+                                   _T(selection));
+
+        Wizard.SetTextControlValue(_T("processorPanelSegmentEntryBase"),
+                                   _T(format("0x%08x", Selected_Memory_Segments[selection].base)));
+
+        Wizard.SetTextControlValue(_T("processorPanelSegmentEntrySize"),
+                                   _T(format("0x%08x", Selected_Memory_Segments[selection].size)));
+
+        Wizard.SetContainerStringSelection(_T("processorPanelSegmentEntryMode"),
+                                           _T(Selected_Memory_Segments[selection].mode));
+    }
+
+//LogDebug(_T("OnClick_processorPanelSegmentList: '" + selection + "'"));
+}
+
+function OnClick_processorPanelSegmentButtonDelete() {
+//LogDebug(_T("OnClick_processorSegmentDeleteButton"));
+    local name = Wizard.GetTextControlValue(_T("processorPanelSegmentEntryName"));
+
+    if (name != null && name.len() != 0) {
+        delete Selected_Memory_Segments[name.tostring()];
+        // Reload table
+        local processor = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelProcessorCombo"))).tostring();
+        LoadProcessorMemoryInformation(processor);
+    }
+}
+
+function OnClick_processorPanelSegmentButtonSave() {
+//LogDebug(_T("OnClick_processorSegmentSaveButton"));
+    local segment_name =                 Wizard.GetTextControlValue(_T("processorPanelSegmentEntryName")).tostring();
+    local segment_base = StringToInteger(Wizard.GetTextControlValue(_T("processorPanelSegmentEntryBase")).tostring());
+    local segment_size = StringToInteger(Wizard.GetTextControlValue(_T("processorPanelSegmentEntrySize")).tostring());
+    local segment_mode =                 Wizard.GetComboboxValue(   _T("processorPanelSegmentEntryMode")).tostring();
+
+//LogDebug(_T("OnClick_processorSegmentSaveButton: segment_name = '" + segment_name + "'"));
+//LogDebug(_T("OnClick_processorSegmentSaveButton: segment_base = '" + segment_base + "'"));
+//LogDebug(_T("OnClick_processorSegmentSaveButton: segment_size = '" + segment_size + "'"));
+//LogDebug(_T("OnClick_processorSegmentSaveButton: segment_mode = '" + segment_mode + "'"));
+
+    Selected_Memory_Segments[segment_name] <- { base = segment_base, size = segment_size, mode = segment_mode };
+
+    // Reload table
+    local processor = EditSingleSelection(Wizard.GetComboboxValue(_T("processorPanelProcessorCombo"))).tostring();
+    LoadProcessorMemoryInformation(processor);
+}
+
+///////////////////////////////////////////
+// Build options panel for software selections
+///////////////////////////////////////////
+Optional_Software_Configured <- false;
+
+function OnEnter_optionsPanel(fwd) {
+
+//dumpVariable("Cube", Cube);
+
+//LogDebug(_T("OnEnter_optionsPanel"));
+    // Perform initialization of Optional_Software one-time-only
+    if (!Optional_Software_Configured) {
+        foreach (software in Optional_Software) {
+            software.configure(this);
+        }
+        Optional_Software_Configured = true;
+    }
+
+    if (Wizard.AddNotebookPanel(_T("optionsPanelNotebook"), _T("optionsPage"), _T("HAL"), _T("HAL"))) {
+
+        // Create remaining panels and add data items
+        Wizard.AddNotebookPanel(_T("optionsPanelNotebook"), _T("optionsPage"), _T("Libs"), _T("Libs"));
+
+        // Add packages to notebook in order
+        foreach (software in Optional_Software) {
+            if ("thirdparty" in Cube && software.realname in Cube.thirdparty) {
+                Wizard.AddNotebookPanel(_T("optionsPanelNotebook"), _T("optionsPage"), _T(software.name), _T(software.pageid));
+            } else if ("st" in Cube && software.realname in Cube.st) {
+                Wizard.AddNotebookPanel(_T("optionsPanelNotebook"), _T("optionsPage"), _T(software.name), _T(software.pageid));
+            }
+
+            if (!software.is_visible()) {
+                ShowNotebookPageWindow(software.pageid, false);
+            }
+        }
+
+        // Select first panel to begin
+        Wizard.SelectNotebookPanel(_T("optionsPanelNotebook"), _T("optionsPage_HAL"));
+    }
+}
+
+function OnLeave_optionsPanel(fwd) {
+    // Check things out to see if we can configure
+//LogDebug(_T("OnLeave_optionsPanel fwd=" + fwd));
+
+    // Save the results for the last notebook page displayed
+    SaveInfoForPage();
+
+//dumpVariable("Optional_Software", Optional_Software);
+    return true;
+}
+
+function OnPageEnter_optionsPanelNotebook(name) {
+//LogDebug(_T("OnPageEnter_optionsPanelNotebook '" + name + "'"));
+    // Detect the option being display
+    local pageid = name.AfterFirst(_T("_")).tostring();
+
+    local software = FindOptionalSoftwareByPanelId(pageid);
+
+    // Remember the current package displayed
+    Selected_Optional_Software = software;
+
+    if (software != null) {
+        if (software.has_enable_checkbox()) {
+            Wizard.CheckCheckbox(_T("optionsPageEnabledCheckbox_" + software.pageid), software.is_enabled());
+        } else {
+            Wizard.ShowWindow(_T("optionsPageEnabledCheckbox_" + software.pageid), false);
+        }
+
+        // Get selectable software (and it's current selection values)
+        local select = software.get_selected(this);
+
+//dumpVariable("OnPageEnter_optionsPanelNotebook selections", select);
+
+        Wizard.ShowWindow(_T("optionsPageTitle_" + software.pageid), true);
+        if ("message" in select) {
+            Wizard.SetTextControlValue(_T("optionsPageTitle_" + software.pageid), _T(select.message));
+        } else {
+            Wizard.SetTextControlValue(_T("optionsPageTitle_" + software.pageid),
+                _T("Select " + (select.single ? "one" : "any") + " of the " + select.title + " options"));
+        }
+
+        // Instantiate the checkbox with a name if value needed
+        if ("checkbox" in select) {
+//LogDebug(_T("Showing optionsPage checkbox"));
+            Wizard.ShowWindow(_T("optionsPageCheckbox_" + software.pageid), true);
+            Wizard.SetTextControlValue(_T("optionsPageCheckbox_" + software.pageid), _T(select.checkbox.title));
+            Wizard.CheckCheckbox(_T("optionsPageCheckbox_" + software.pageid), select.checkbox.value);
+        } else {
+            // Hide the checkbox
+//LogDebug(_T("Hiding optionsPage checkbox"));
+            Wizard.ShowWindow(_T("optionsPageCheckbox_" + software.pageid), false);
+        }
+
+        if ("error" in select) {
+            Wizard.ShowWindow(_T("optionsPageError_" + software.pageid), true);
+            Wizard.SetTextControlValue(_T("optionsPageError_" + software.pageid), _T(select.error));
+        } else if ("title" in select && select.title.len() != 0) {
+            Wizard.ShowWindow(_T("optionsPageError_" + software.pageid), false);
+
+            if ("selections" in select) {
+                Wizard.ShowWindow(_T("optionsPageGrid_" + software.pageid), false);
+                Wizard.ShowWindow(_T("optionsPageChecklist_" + software.pageid), true);
+                Wizard.FillContainerWithStringsFromArray(_T("optionsPageChecklist_" + software.pageid),
+                                                         TableToArrayString(select.selections, sortalpha));
+
+                Wizard.SetContainerStringSelectionsFromArray(_T("optionsPageChecklist_" + software.pageid),
+                                                             SelectedTableToArrayString(select.selections));
+                local style = 0;
+                if (select.single) {
+                    style = (style | wxLB_SINGLE);
+                } else {
+                    style = (style | wxLB_MULTIPLE);
+                }
+                if ("sort" in select && select.sort) {
+                    style = (style | wxLB_SORT);
+                }
+
+                Wizard.SetContainerStyle(_T("optionsPageChecklist_" + software.pageid), style);
+            } else {
+                Wizard.ShowWindow(_T("optionsPageChecklist_" + software.pageid), false);
+                Wizard.ShowWindow(_T("optionsPageGrid_" + software.pageid), true);
+                Wizard.FillGridWithData(_T("optionsPageGrid_" + software.pageid),
+                                        select.columns,
+                                        ArrayToArrayString(select.column_labels),
+                                        ArrayToArrayString(select.data),
+                                        _T("rowlabels=no;readonlycolumns=0;fillcolumns=0"));
+            }
+        }
+
+        SetPageObjectsEnabled(software, software.is_enabled());
+//LogDebug(_T("OnPageEnter_optionsPanelNotebook '" + name + "' exiting"));
+    }
+}
+
+function OnClick_optionsPageEnabledCheckbox(pageid_t) {
+
+    local pageid = pageid_t.tostring();
+
+    local software = FindOptionalSoftwareByPanelId(pageid);
+    if (software != null) {
+
+//LogDebug(_T("OnClick_optionsPageEnabledCheckbox: '" + software.pageid + "'"));
+
+        local enable = Wizard.IsCheckboxChecked(_T("optionsPageEnabledCheckbox_" + software.pageid));
+//LogDebug(_T("OnClick_optionsPageEnabledCheckbox: '" + software.pageid + "' checkbox '" + enable + "'"));
+        SetPageObjectsEnabled(software, enable);
+    }
+}
+
+// Testing
+function OnClick_optionsPageChecklist(pageid_t) {
+    local pageid = pageid_t.tostring();
+//LogDebug(_T("OnClick_optionsPageChecklist: '" + pageid + "'"));
+}
+
+// Testing
+function OnClick_optionsPageGrid(pageid_t) {
+    local pageid = pageid_t.tostring();
+//LogDebug(_T("OnClick_optionsPageGrid: '" + pageid + "'"));
+}
+
+// TESTING
+function OnClick_optionsPageCheckbox(pageid_t) {
+    local pageid = pageid_t.tostring();
+//LogDebug(_T("OnClick_optionsPageCheckbox: '" + pageid + "'"));
+}
+
+function SetPageObjectsEnabled(software, enable) {
+    if (software != null) {
+        Wizard.EnableWindow(_T("optionsPageChecklist_" + software.pageid), enable);
+        Wizard.EnableWindow(_T("optionsPageGrid_" + software.pageid), enable);
+        Wizard.EnableWindow(_T("optionsPageCheckbox_" + software.pageid), enable);
+        software.set_enabled(this, enable);
+    }
+}
+
+function ShowNotebookPageWindow(pageid, show) {
+    Wizard.ShowWindow(_T("optionsPage_" + pageid), show);
+}
+
+function OnPageLeave_optionsPanelNotebook(name) {
+//LogDebug(_T("OnPageLeave_optionsPanelNotebook '" + name + "'"));
+
+    SaveInfoForPage();
+}
+
+function SaveInfoForPage() {
+    local software = Selected_Optional_Software;
+
+    if (software != null) {
+        // Put selections back into Optional_Software object
+        if (software.has_enable_checkbox()) {
+            local enabled = Wizard.IsCheckboxChecked(_T("optionsPageEnabledCheckbox_" + software.pageid));
+            software.set_enabled(this, enabled);
+        }
+
+        local check_box = Wizard.IsCheckboxChecked(_T("optionsPageCheckbox_" + software.pageid));
+
+        local selections;
+        if (software.is_grid()) {
+            local results = Wizard.GetGridValuesAsArray(_T("optionsPageGrid_" + software.pageid));
+            selections = DecodeGridResults(ArrayStringToArray(results));
+//dumpVariable("Decoded Selections", selections);
+        } else {
+            local results = Wizard.GetContainerStringSelectionsAsArray(_T("optionsPageChecklist_" + software.pageid));
+            selections = ArrayStringToTable(results, true);
+        }
+
+        software.set_selections(this, selections, check_box);
+//dumpVariable("Selections after setting", software.selections);
+    }
+}
+
+// Take an array of <name>;<value> pairs and create a table of
+//    <column 0> = "<column 1>[;<column n+1>]...
+// items.  Since the table should be a n rows x 2 columns, we
+// use the first column as the name and the second as the value.
+function DecodeGridResults(results) {
+    local table = {};
+
+    local rows = results[0].tointeger();
+    local cols = results[1].tointeger();
+
+//LogDebug(_T(format("DecodeGridAsTable %d rows %d cols", rows, cols)));
+
+    local item = 2;
+
+    for (local row = 0; row < rows; ++row) {
+        local row_label = results[item++];
+        table[row_label] <- "";
+
+        for (local col = 1; col < cols; ++col) {
+
+            // Put \t between items
+            if (table[row_label].len() != 0) {
+                table[row_label] += "\t";
+            }
+
+            table[row_label] += results[item++];
+        }
+    }
+
+    return table;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// peripheral configuration
+///////////////////////////////////////////////////////////////////////////////
+function OnEnter_summaryPanel(fwd) {
+//LogDebug(_T("OnEnter_summaryPanel"));
+    Wizard.SetTextControlValue(_T("summaryPanelCubeText"), _T(Cube.folder));
+    Wizard.SetTextControlValue(_T("summaryPanelFamilyText"), _T(Processors[Processor].family).Upper());
+    Wizard.SetTextControlValue(_T("summaryPanelProcessorText"), _T(Processor).Upper());
+    Wizard.SetTextControlValue(_T("summaryPanelBspText"), Board ? _T(Board) : _T("Custom"));
+    Wizard.SetTextControlValue(_T("summaryPanelHalText"), _T(""));
+}
+
+function OnLeave_summaryPanel(fwd) {
+//LogDebug(_T("OnLeave_summaryPanel"));
+    if (fwd) {
+        // Construct the source files needed
+        GenerateAllFiles();
+    }
+    return true;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// MapToHeaders
+//
+// Convert a list of '.c' files to '.h' files
+//
+// files             - list of files
+//
+// Returns a list of modified path names.
+//
+function MapToHeaders(files) {
+    local output = [];
+
+    foreach (infile in files) {
+        // Turn .cpp and .c files into .h
+        local outfile = infile.Replace(_T(".c$"), _T(".h")).Replace(_T(".cpp$"), _T(".h"));
+        if (outfile != infile) {
+            output.append(outfile);
+        }
+    }
+
+    return output;
+}
+
+function GenerateAllFiles() {
+    Generated_Files = [];
+
+    // Dump the final Cube dir contents
+//dumpVariable("Cube", Cube);
+
+    // Optional Software stuff here
+    // Must be done first since it can build Main macros
+    // Check all optional software allocations
+    foreach (software in Optional_Software) {
+        if (software.is_enabled()) {
+            AddOptionalSoftware(software);
+        }
+    }
+
+    // Add <target>.ld
+    local segment_list = _T("\n");
+    foreach (section, segment in Selected_Memory_Segments) {
+
+        if (typeof(segment) == "string") {
+            // An alias - ignore for now
+        } else {
+            segment_list += _T(format("    %s (%s) : ORIGIN = 0x%x, LENGTH = 0x%x\n",
+                                      section, segment.mode, segment.base, segment.size));
+        }
+    }
+
+    local ld_macros = {};
+    ld_macros["[LD_SEGMENT_LIST]"] <- segment_list;
+
+    local minheap = Selected_Min_Heap ? Selected_Min_Heap : GetProcessorOption(Processor, "minheap", 0);
+    local minstack = Selected_Min_Stack ? Selected_Min_Stack : GetProcessorOption(Processor, "minstack", 0);
+    ld_macros["[LD_MINHEAP]"] <- _T(format("0x%x", minheap));
+    ld_macros["[LD_MINSTACK]"] <- _T(format("0x%x", minstack));
+
+    ld_macros["[LD_PROCESSOR]"] <- _T(Processor);
+
+    // This will fail for the units that have SRAM, not RAM in memory table; need to handle alias
+    ld_macros["[LD_RAMEND]"] <- _T(format("0x%x", Selected_Memory_Segments.RAM.base + Selected_Memory_Segments.RAM.size - 1 ));
+
+    Wizard.SetTextControlValue(_T("buildStatusText"), _T("Building ") + _T(Processor).Lower() + _T(".ld"));
+    AddProjectFile(Ld_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/ld/target.ld")),
+                   NO_COMPILE_NO_LINK,
+                   ld_macros,
+                   _T(Processor).Lower() + _T(".ld"));
+
+    // CMSIS assembly harness
+    Wizard.SetTextControlValue(_T("buildStatusText"), _T("Building CMSIS"));
+    local startup = _T("startup_") + _T(Processors[Processor].family).Lower() + _T(".s");
+    AddProjectFile(CMSIS_src_dir,
+                   FixupPathname(STM32_CMSIS_s_folder + wxFILE_SEP_PATH + startup),
+                   COMPILE_AND_LINK);
+
+    // Add proper startup file
+    AddProjectFile(CMSIS_src_dir,
+                   STM32_CMSIS_c_filename,
+                   COMPILE_AND_LINK);
+
+    // Add CMSIS h files
+    AddProjectFilesFromFolder(CMSIS_inc_dir,
+                              STM32_CMSIS_h_folder,
+                              _T(Dot_H_Mask));
+
+    // Add CMSIS core h files
+    AddProjectFilesFromFolder(CMSIS_inc_dir,
+                              STM32_CMSIS_core_folder,
+                              _T(Dot_H_Mask));
+    Extra_Include_Paths.append(CMSIS_inc_dir);
+
+    //if (Selected_BSP_Items.len() != 0) {
+    //  // Add BSP files if any
+    //  AddProjectFiles(BSP_src_dir, STM32_BSP_folder + BoardTypes[Board].bsp, Selected_BSP_Items, { compile = true, link = true });
+    //  AddProjectFiles(BSP_inc_dir, STM32_BSP_folder + BoardTypes[Board].bsp, MapToHeaders(Selected_BSP_Items));
+    //}
+    //Extra_Include_Paths.append(BSP_inc_dir);
+
+    AddToMacro("[MAIN_INCLUDES]", _T("#include \"" + System_basename + ".h\"\n"), /* prepend */ true);
+    // I know it's called 'MAX_STACK_SIZE', but this is the MIN to leave for freeRTOS
+    AddToMacro("[MAX_STACK_SIZE]", _T(format("0x%x", GetProcessorOption(Processor, "minstack", 0))));
+
+    AddProjectFile(User_src_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/c/main.c")),
+                   COMPILE_AND_LINK,
+                   Macro_List);
+    Extra_Include_Paths.append(User_src_dir);
+
+    // System Calls stubs
+    AddProjectFile(User_src_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/c/syscalls.c")),
+                   COMPILE_AND_LINK,
+                   Macro_List);
+
+    // System interrupt handlers stubs (with some things implemented for FreeRTOS and HAL timers)
+    AddProjectFile(User_src_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/c/syshandlers.c")),
+                   COMPILE_AND_LINK,
+                   Macro_List);
+
+    // Add "main.h" to main src dir
+    AddProjectFile(User_inc_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/h/main.h")),
+                   COMPILE_AND_LINK,
+                   Macro_List);
+
+    AddProjectFile(User_conf_inc_dir,
+                   Wizard.FindTemplateFile(_T("stm32/templates/default/h/configuration.h")),
+                   NO_COMPILE_NO_LINK,
+                   Macro_List);
+
+    Extra_Include_Paths.append(User_inc_dir);
+    Extra_Include_Paths.append(User_conf_inc_dir);
+
+    // Save the Optional_Software configuration into the project
+    configuration <- {};
+    configuration.processor <- Processor.tostring();
+    configuration.memory <- Selected_Memory_Segments;
+
+    if (Selected_Min_Heap != null) {
+        configuration.minheap <- Selected_Min_Heap;
+    }
+
+    if (Selected_Min_Stack != null) {
+        configuration.minstack <- Selected_Min_Stack;
+    }
+
+    foreach (software in Optional_Software) {
+       if (software.is_enabled()) {
+           configuration[software.pageid] <- software.selections;
+       }
+    }
+
+    // save as stm32.conf
+    AddProjectFile(User_project_dir,
+                   _T(emitVariable(configuration)),
+                   NO_COMPILE_NO_LINK,
+                   null,
+                   _T("stm32.conf"),
+                   /* generated */ true);
+}
+
+function DefineMacro(macro, contents, prepend = false) {
+    Macro_List[macro] <- contents;
+}
+
+function AddToMacro(macro, contents, prepend = false) {
+    if (contents.len() != 0) {
+        // Initialize macro if necessary
+        if (! (macro in Macro_List)) {
+            Macro_List[macro] <- contents;
+        } else if (prepend) {
+            Macro_List[macro] = contents + Macro_List[macro];
+        } else {
+            Macro_List[macro] += contents;
+        }
+    }
+}
+
+function ProcessMacroItem(context, addfunc, macro) {
+    local included_text = null;
+
+    if ("source" in macro) {
+        // section item 0 is the file whose contents should be added to main.c
+        included_text = IO.ReadFileContents(Wizard.FindTemplateFile(_T(GetContentsOf(context, macro.source))));
+//LogDebug(_T("processMacroItem: copying template '" + macro.source + "' with " + include_file.len() + " bytes"));
+    } else if ("text" in macro) {
+        included_text = _T(GetContentsOf(context, macro.text));
+    }
+
+    if (included_text != null) {
+        addfunc(macro.macro, included_text, "prepend" in macro && macro.prepend);
+    }
+}
+
+
+function AddOptionalSoftware(software) {
+//LogDebug(_T("AddOptionalSoftware: '" + software.description + "' started"));
+    foreach(define in software.extradefines) {
+        Extra_Defines.append(define);
+    }
+
+    foreach(macro in software.definemacros) {
+        ProcessMacroItem(software, DefineMacro, macro);
+    }
+
+    foreach(macro in software.addtomacros) {
+        ProcessMacroItem(software, AddToMacro, macro);
+    }
+
+    foreach(compile in software.addtoproject) {
+        local source = FixupPathname(GetContentsOf(software, compile.source));
+        local target = FixupPathname(GetContentsOf(software, compile.target));
+
+        foreach (macro, contents in Macro_List) {
+            source.Replace(_T(macro), contents);
+        }
+
+        local dirflags = "dirflags" in compile ? compile.dirflags : "files;relative";
+
+        AddProjectFilesFromFolder(target,                // Target folder in project
+                                  source,                // Source folder to read
+                                  _T(compile.mask),      // File selection mask
+                                  "template" in compile ? compile.template : null,
+                                  compile.compile_flags,    // Compile/link flags
+                                  "macros" in compile ? compile.macros : null,
+                                  _T(dirflags)           // Select files
+                                  );
+
+        if ("include" in compile && compile.include) {
+            Extra_Include_Paths.append(target);
+        }
+    }
+
+    foreach(template in software.templates) {
+        AddProjectFile(FixupPathname(GetContentsOf(software, template.target)),   // Target folder
+                       FixupPathname(GetContentsOf(software, template.source)),   // Source file
+                       template.compile_flags,           // Controls compile/link
+                       {},                               // Force a generate, not copy
+                       _T(template.output_name)          // Output name to use
+                       );
+    }
+
+//dumpVariable("AddOptionalSoftware software", software.selections);
+    software.generate(this);
+//LogDebug(_T("AddOptionalSoftware: '" + software.description + "' exited"));
+}
+
+//
+//------------------------------------------------------------------------------
+//
+
+function GetFilesDir() {
+    return _T("");  // File is generated
+}
+
+// Find last part of name
+function BasenameOf(pathname) {
+    local filename = wxFileName();
+    filename.Assign(pathname, wxPATH_NATIVE);
+    return filename.GetFullName();
+}
+
+function PathOf(pathname) {
+    local filename = wxFileName();
+    filename.Assign(pathname, wxPATH_NATIVE);
+    return filename.GetPath(wxPATH_GET_VOLUME, wxPATH_NATIVE);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// GetGeneratedFile
+//
+// Called by project api to obtain the next generated file to be added to the
+// project.  Mines the list of files created during project construction.
+//
+// index          - index (starting at 0) of file to be generated
+//
+// Returns _T("") when out of files.
+///////////////////////////////////////////////////////////////////////////////
+function GetGeneratedFile(index) {
+    local results;
+
+    if (index < Generated_Files.len()) {
+        results = GenerateFile(Generated_Files[index]);
+    } else {
+        // Out of files to generate - indicate done
+        results = _T("");
+    }
+
+    return results;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// GetCopiedFile
+//
+// Called by project api to obtain the next generated file to be added to the
+// project.  Mines the list of files created during project construction.
+//
+// index          - index (starting at 0) of file to be generated
+//
+// Returns _T("") when out of files.
+///////////////////////////////////////////////////////////////////////////////
+function GetCopiedFile(index) {
+    local results;
+
+    if (index < Copied_Files.len()) {
+        local item = Copied_Files[index];
+        local target_folder = item.target;
+        local source_path = item.source;
+        local output_name = item.alternate;
+
+        if (output_name == null) {
+            output_name = BasenameOf(source_path);
+        }
+
+        results = FixupPathname(target_folder + output_name + _T(";") + source_path);
+    } else {
+        // Out of files to generate - indicate done
+        results = _T("");
+    }
+
+    return results;
+}
+
+
+
+function GetProcessorOption(processor, option, default_value = null) {
+    local value = default_value;
+
+    if (processor in Processors && option in Processors[processor]) {
+        value = Processors[processor][option];
+    } else {
+        // Look in ProcessorsDefault by family
+        local family = _T(processor).Mid(5, 2).Upper().tostring();
+
+        if (family in ProcessorsDefault && option in ProcessorsDefault[family]) {
+            value = ProcessorsDefault[family][option];
+        } else if (option in ProcessorsDefault.default_values) {
+            value = ProcessorsDefault.default_values[option];
+        }
+    }
+
+    return value;
+}
+
+// This fetches the 'segments' item from the processor.
+// It should return a table.  If it returns a string, then
+// it is interpreted as an indirect to another processor's
+// segment.  Only permit a limited number of indirects...
+function GetProcessorSegments(processor, level = 5) {
+//LogDebug(_T("GetProcessorSegments '" + processor + "'"));
+    local segments = GetProcessorOption(processor, "segments");
+    if (typeof(segments) == "string") {
+        if (level >= 0) {
+            segments = GetProcessorSegments(segments, level - 1);
+        } else {
+            // Should happen normally unless too many indirects,
+            // since the default action will pull a defule from
+            // the family table.
+            segments = null;
+        }
+    }
+//dumpVariable("GetProcessorSegments + '" + processor + "'", segments);
+    return segments;
+}
+
+
+// Return a list of processors.
+function GetFamiliesForBoard(board) {
+    local list = [];
+
+    if (board == CustomSelection) {
+        // Give the entire list
+        foreach (name, value in CubeData.families) {
+           list.append(name);
+        }
+    } else if (board != null && board in Boards) {
+        foreach (name in Boards[board]) {
+            list.append(name);
+        }
+    }
+    return list;
+}
+
+// Return a list of processors that match the family.
+function GetProcessorsForFamily(family) {
+    local list = [];
+
+    foreach (processor, contents in Processors) {
+        if (contents.family == family) {
+            list.append(processor);
+        }
+    }
+
+    return list;
+}
+

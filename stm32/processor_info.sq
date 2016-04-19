@@ -1,0 +1,2849 @@
+///////////////////////////////////////////////////////////////////////////////
+// Define processor type information:
+//    name:       Name of the processor as shown in dialogs
+//    arch:       Arm architecture flag
+//    cpu:        Cpu flag
+//    class:      The processor name
+//    defines:    An optional list of other defines
+//    ccoptions:  A list of options added to compiler call
+//    ldoptions:  A list of options added to linker call
+//    memory:     A table of memory segment names; each has a value of a list
+//                containing a base address and length.
+//    minheap:    A value defining the amount of heap to allocate
+//    minstack:   A value defining the amount of stack to allocate
+///////////////////////////////////////////////////////////////////////////////
+ProcessorsDefault <- {
+  default_values = {
+    minheap    = 0x400,
+    minstack   = 0x200,
+  },
+  F0 = {
+    arch       = "armv7e-m",
+    cpu        = "cortex-m0",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  F1 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m1",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  F2 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m2",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  F3 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m3",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  F4 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m4",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
+    halcheck   = [ "CORTEX", "GPIO", "FLASH", "RCC", "PWR" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   CCM    = { base = 0x10000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  F7 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m7",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
+    segments   = { SRAM1   = { base = 0x20001000, size = 0x0003C000, mode = "rw" },
+                   SRAM2   = { base = 0x2004C000, size = 0x00004000, mode = "rw" },
+                   FLASH   = { base = 0x08000000, size = 0x00400000, mode = "rx" },
+                   SYSTEM  = { base = 0x00100000, size = 0x0000EDC0, mode = "rw" },
+                   AXIM    = { base = 0x08000000, size = 0x00100000, mode = "rw" },
+                   OPTIONS = { base = 0x1FFF0000, size = 0x00000020, mode = "rw" },
+                   ITCM    = { base = 0x00000000, size = 0x00004000, mode = "rw" },
+                   DTCM    = { base = 0x20000000, size = 0x00010000, mode = "rx" },
+                   RAM     = { base = 0x20000000, size = 0x00050000, mode = "rw" },
+                 },
+  },
+  L0 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m0",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+  L1 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m3",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    halcheck   = [ "CORTEX", "GPIO", "FLASH", "RCC", "PWR" ],
+    segments   = {
+                    FLASH  = { base = 0x08000000, size = 32*1024,   mode = "rx" },
+                    EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+                    RAM    = { base = 0x20000000, size = 4*1024,    mode = "rw" },
+                 },
+  },
+  L4 = {
+    //arch       = "armv7e-m",
+    cpu        = "cortex-m4",
+    ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
+    segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
+                   FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
+                 },
+  },
+}
+
+//
+//  Indexed by processor family.
+//
+//  contains:
+//
+//     processors = {
+//        <specific processor> = {
+//             segments = { <segment list> },
+//             <other options as necessary>
+//        }
+//        ...
+//     }
+//
+// Omitted information will default to Default item.
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+Processors <- {
+    //////////////////////////
+    // F0
+    //////////////////////////
+    STM32F030F4 = {
+        family = "STM32F30x6",
+    },
+
+    STM32F030C6 = {
+        family = "STM32F30x6",
+    },
+
+    STM32F030K6 = {
+        family = "STM32F30x6",
+    },
+
+    STM32F030C8 = {
+        family = "STM32F30x8",
+    },
+
+    STM32F030R8 = {
+        family = "STM32F30x8",
+    },
+
+    STM32F030CC = {
+        family = "STM32F30xC",
+    },
+
+    STM32F030RC = {
+        family = "STM32F30xC",
+    },
+
+    STM32F031C4 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031F4 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031G4 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031K4 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031C6 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031F6 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031G6 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F031K6 = {
+        family = "STM32F031x6",
+    },
+
+    STM32F051K4 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051C4 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051R4 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051K6 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051C6 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051R6 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051K8 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051C8 = {
+        family = "STM32F051x8",
+    },
+
+    STM32F051R8 = {
+        family = "STM32F051x8",
+    },
+
+
+    STM32F070F6 = {
+        family = "STM32F070x6",
+    },
+
+    STM32F070C6 = {
+        family = "STM32F070x6",
+    },
+
+    STM32F070RB = {
+        family = "STM32F070xB",
+    },
+
+    STM32F070CB = {
+        family = "STM32F070xB",
+    },
+
+    STM32F071V8 = {
+        family = "STM32F071xB",
+    },
+
+    STM32F071CB = {
+        family = "STM32F071xB",
+    },
+
+    STM32F071RB = {
+        family = "STM32F071xB",
+    },
+
+    STM32F071VB = {
+        family = "STM32F071xB",
+    },
+
+    STM32F042F4 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042G4 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042K4 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042T4 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042C4 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042F6 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042G6 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042K6 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042T6 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F042C6 = {
+        family = "STM32F042x6",
+    },
+
+    STM32F072C8 = {
+        family = "STM32F072xB",
+    },
+
+    STM32F072R8 = {
+        family = "STM32F072xB",
+    },
+
+    STM32F072V8 = {
+        family = "STM32F072xB",
+    },
+
+    STM32F072CB = {
+        family = "STM32F072xB",
+    },
+
+    STM32F072RB = {
+        family = "STM32F072xB",
+    },
+
+    STM32F072VB = {
+        family = "STM32F072xB",
+    },
+
+    STM32F038C6 = {
+        family = "STM32F038xx",
+    },
+
+    STM32F038F6 = {
+        family = "STM32F038xx",
+    },
+
+    STM32F038G6 = {
+        family = "STM32F038xx",
+    },
+
+    STM32F038K6 = {
+        family = "STM32F038xx",
+    },
+
+    STM32F048C6 = {
+        family = "STM32F048xx",
+    },
+
+    STM32F048G6 = {
+        family = "STM32F048xx",
+    },
+
+    STM32F048T6 = {
+        family = "STM32F048xx",
+    },
+
+    STM32F058K8 = {
+        family = "STM32F058xx",
+    },
+
+    STM32F058C8 = {
+        family = "STM32F058xx",
+    },
+
+    STM32F058R8 = {
+        family = "STM32F058xx",
+    },
+
+    STM32F078CB = {
+        family = "STM32F078xx",
+    },
+
+    STM32F078RB = {
+        family = "STM32F078xx",
+    },
+
+    STM32F078VB = {
+        family = "STM32F078xx",
+    },
+
+    STM32F091CB = {
+        family = "STM32F091xx",
+    },
+
+    STM32F091RB = {
+        family = "STM32F091xx",
+    },
+
+    STM32F091VB = {
+        family = "STM32F091xx",
+    },
+
+    STM32F091CC = {
+        family = "STM32F091xx",
+    },
+
+    STM32F091RC = {
+        family = "STM32F091xx",
+    },
+
+    STM32F091VC = {
+        family = "STM32F091xx",
+    },
+
+    STM32F098CC = {
+        family = "STM32F098xx",
+    },
+
+    STM32F098RC = {
+        family = "STM32F098xx",
+    },
+
+    STM32F098VC = {
+        family = "STM32F098xx",
+    },
+
+    //////////////////////////
+    // F1
+    //////////////////////////
+    STM32F100C4 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100R4 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100C6 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100R6 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100C8 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100R8 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100V8 = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100CB = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100RB = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100VB = {
+        family = "STM32F100xB",
+    },
+
+    STM32F100RC = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100VC = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100ZC = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100RD = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100VD = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100ZD = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100RE = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100VE = {
+        family = "STM32F100xE",
+    },
+
+    STM32F100ZE = {
+        family = "STM32F100xE",
+    },
+
+    STM32F101C4 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101R4 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101T4 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101C6 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101R6 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101T6 = {
+        family = "STM32F101x6",
+    },
+
+    STM32F101C8 = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101R8 = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101T8 = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101V8 = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101CB = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101RB = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101TB = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101VB = {
+        family = "STM32F101xB",
+    },
+
+    STM32F101RC = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101VC = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101ZC = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101RD = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101VD = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101ZD = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101RE = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101VE = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101ZE = {
+        family = "STM32F101xE",
+    },
+
+    STM32F101RF = {
+        family = "STM32F101xG",
+    },
+
+    STM32F101VF = {
+        family = "STM32F101xG",
+    },
+
+    STM32F101ZF = {
+        family = "STM32F101xG",
+    },
+
+    STM32F101RG = {
+        family = "STM32F101xG",
+    },
+
+    STM32F101VG = {
+        family = "STM32F101xG",
+    },
+
+    STM32F101ZG = {
+        family = "STM32F101xG",
+    },
+
+    STM32F102C4 = {
+        family = "STM32F102x6",
+    },
+
+    STM32F102R4 = {
+        family = "STM32F102x6",
+    },
+
+    STM32F102C6 = {
+        family = "STM32F102x6",
+    },
+
+    STM32F102R6 = {
+        family = "STM32F102x6",
+    },
+
+    STM32F102C8 = {
+        family = "STM32F102xB",
+    },
+
+    STM32F102R8 = {
+        family = "STM32F102xB",
+    },
+
+    STM32F102CB = {
+        family = "STM32F102xB",
+    },
+
+    STM32F102RB = {
+        family = "STM32F102xB",
+    },
+
+    STM32F103C4 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103R4 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103T4 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103C6 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103R6 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103T6 = {
+        family = "STM32F103x6",
+    },
+
+    STM32F103C8 = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103R8 = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103T8 = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103V8 = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103CB = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103RB = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103TB = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103VB = {
+        family = "STM32F103xB",
+    },
+
+    STM32F103RC = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103VC = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103ZC = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103RD = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103VD = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103ZD = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103RE = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103VE = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103ZE = {
+        family = "STM32F103xE",
+    },
+
+    STM32F103RF = {
+        family = "STM32F103xG",
+    },
+
+    STM32F103VF = {
+        family = "STM32F103xG",
+    },
+
+    STM32F103ZF = {
+        family = "STM32F103xG",
+    },
+
+    STM32F103RG = {
+        family = "STM32F103xG",
+    },
+
+    STM32F103VG = {
+        family = "STM32F103xG",
+    },
+
+    STM32F103ZG = {
+        family = "STM32F103xG",
+    },
+
+    STM32F105R8 = {
+        family = "STM32F105xC",
+    },
+
+    STM32F105V8 = {
+        family = "STM32F105xC",
+    },
+
+    STM32F105RB = {
+        family = "STM32F105xC",
+    },
+
+    STM32F105VB = {
+        family = "STM32F105xC",
+    },
+
+    STM32F105RC = {
+        family = "STM32F105xC",
+    },
+
+    STM32F105VC = {
+        family = "STM32F105xC",
+    },
+
+    STM32F107RB = {
+        family = "STM32F107xC",
+    },
+
+    STM32F107VB = {
+        family = "STM32F107xC",
+    },
+
+    STM32F107RC = {
+        family = "STM32F107xC",
+    },
+
+    STM32F107VC = {
+        family = "STM32F107xC",
+    },
+
+    //////////////////////////
+    // F2
+    //////////////////////////
+    STM32F205RB = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205RC = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205RE = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205RF = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205RG = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205VB = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205VC = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205VE = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205VF = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205VG = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205ZC = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205ZE = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205ZF = {
+        family = "STM32F205xx",
+    },
+
+    STM32F205ZG = {
+        family = "STM32F205xx",
+    },
+
+    STM32F215RE = {
+        family = "STM32F215xx",
+    },
+
+    STM32F215RG = {
+        family = "STM32F215xx",
+    },
+
+    STM32F215VE = {
+        family = "STM32F215xx",
+    },
+
+    STM32F215VG = {
+        family = "STM32F215xx",
+    },
+
+    STM32F215ZE = {
+        family = "STM32F215xx",
+    },
+
+    STM32F207IC = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207IE = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207IF = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207IG = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207VC = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207VE = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207VF = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207VG = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207ZC = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207ZE = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207ZF = {
+        family = "STM32F207xx",
+    },
+
+    STM32F207ZG = {
+        family = "STM32F207xx",
+    },
+
+    STM32F217VG = {
+        family = "STM32F217xx",
+    },
+
+    STM32F217VE = {
+        family = "STM32F217xx",
+    },
+
+    STM32F217ZG = {
+        family = "STM32F217xx",
+    },
+
+    STM32F217ZE = {
+        family = "STM32F217xx",
+    },
+
+    STM32F217IG = {
+        family = "STM32F217xx",
+    },
+
+    STM32F217IE = {
+        family = "STM32F217xx",
+    },
+
+    //////////////////////////
+    // F3
+    //////////////////////////
+    STM32F301K6 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F301C6 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F301R6 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F301K8 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F301C8 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F301R8 = {
+        family = "STM32F301x8",
+    },
+
+    STM32F302K6 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302C6 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302R6 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302K8 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302C8 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302R8 = {
+        family = "STM32F302x8",
+    },
+
+    STM32F302CB = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302RB = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302VB = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302CC = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302RC = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302VC = {
+        family = "STM32F302xC",
+    },
+
+    STM32F302RD = {
+        family = "STM32F302xE",
+    },
+
+    STM32F302VD = {
+        family = "STM32F302xE",
+    },
+
+    STM32F302ZD = {
+        family = "STM32F302xE",
+    },
+
+    STM32F302RE = {
+        family = "STM32F302xE",
+    },
+
+    STM32F302VE = {
+        family = "STM32F302xE",
+    },
+
+    STM32F302ZE = {
+        family = "STM32F302xE",
+    },
+
+    STM32F303K6 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303C6 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303R6 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303K8 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303C8 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303R8 = {
+        family = "STM32F303x8",
+    },
+
+    STM32F303CB = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303RB = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303VB = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303CC = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303RC = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303VC = {
+        family = "STM32F303xC",
+    },
+
+    STM32F303RD = {
+        family = "STM32F303xE",
+    },
+
+    STM32F303VD = {
+        family = "STM32F303xE",
+    },
+
+    STM32F303ZD = {
+        family = "STM32F303xE",
+    },
+
+    STM32F303RE = {
+        family = "STM32F303xE",
+    },
+
+    STM32F303VE = {
+        family = "STM32F303xE",
+    },
+
+    STM32F303ZE = {
+        family = "STM32F303xE",
+    },
+
+    STM32F373C8 = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373R8 = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373V8 = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373CB = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373RB = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373VB = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373CC = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373RC = {
+        family = "STM32F373xC",
+    },
+
+    STM32F373VC = {
+        family = "STM32F373xC",
+    },
+
+    STM32F334K4 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334C4 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334R4 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334K6 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334C6 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334R6 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334K8 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334C8 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F334R8 = {
+        family = "STM32F334x8",
+    },
+
+    STM32F318K8 = {
+        family = "STM32F318xx",
+    },
+
+    STM32F318C8 = {
+        family = "STM32F318xx",
+    },
+
+    STM32F328C8 = {
+        family = "STM32F328xx",
+    },
+
+    STM32F328R8 = {
+        family = "STM32F328xx",
+    },
+
+    STM32F358CC = {
+        family = "STM32F358xx",
+    },
+
+    STM32F358RC = {
+        family = "STM32F358xx",
+    },
+
+    STM32F358VC = {
+        family = "STM32F358xx",
+    },
+
+    STM32F378CC = {
+        family = "STM32F378xx",
+    },
+
+    STM32F378RC = {
+        family = "STM32F378xx",
+    },
+
+    STM32F378VC = {
+        family = "STM32F378xx",
+    },
+
+    STM32F398RE = {
+        family = "STM32F398xx",
+    },
+
+    STM32F398VE = {
+        family = "STM32F398xx",
+    },
+
+    STM32F398ZE = {
+        family = "STM32F398xx",
+    },
+
+//////////////////////////
+// F4
+//////////////////////////
+    STM32F405RG = {
+        family = "STM32F405xx",
+    },
+
+    STM32F405VG = {
+        family = "STM32F405xx",
+    },
+
+    STM32F405ZG = {
+        family = "STM32F405xx",
+    },
+
+    STM32F415RG = {
+        family = "STM32F415xx",
+    },
+
+    STM32F415VG = {
+        family = "STM32F415xx",
+    },
+
+    STM32F415ZG = {
+        family = "STM32F415xx",
+    },
+
+    STM32F407VG = {
+        family = "STM32F407xx",
+    },
+
+    STM32F407VE = {
+        family = "STM32F407xx",
+    },
+
+    STM32F407ZG = {
+        family = "STM32F407xx",
+    },
+
+    STM32F407ZE = {
+        family = "STM32F407xx",
+    },
+
+    STM32F407IG = {
+        family = "STM32F407xx",
+    },
+
+    STM32F407IE = {
+        family = "STM32F407xx",
+    },
+
+    STM32F417VG = {
+        family = "STM32F417xx",
+    },
+
+    STM32F417VE = {
+        family = "STM32F417xx",
+    },
+
+    STM32F417ZG = {
+        family = "STM32F417xx",
+    },
+
+    STM32F417ZE = {
+        family = "STM32F417xx",
+    },
+
+    STM32F417IG = {
+        family = "STM32F417xx",
+    },
+
+    STM32F417IE = {
+        family = "STM32F417xx",
+    },
+
+    STM32F427VG = {
+        family = "STM32F427xx",
+    },
+
+    STM32F427VI = {
+        family = "STM32F427xx",
+    },
+
+    STM32F427ZG = {
+        family = "STM32F427xx",
+    },
+
+    STM32F427ZI = {
+        family = "STM32F427xx",
+    },
+
+    STM32F427IG = {
+        family = "STM32F427xx",
+    },
+
+    STM32F427II = {
+        family = "STM32F427xx",
+    },
+
+    STM32F437VG = {
+        family = "STM32F437xx",
+    },
+
+    STM32F437VI = {
+        family = "STM32F437xx",
+    },
+
+    STM32F437ZG = {
+        family = "STM32F437xx",
+    },
+
+    STM32F437ZI = {
+        family = "STM32F437xx",
+    },
+
+    STM32F437IG = {
+        family = "STM32F437xx",
+    },
+
+    STM32F437II = {
+        family = "STM32F437xx",
+    },
+
+    STM32F429VG = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429VI = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429ZG = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429ZI = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429BG = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429BI = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429NG = {
+        family = "STM32F429xx",
+    },
+
+    STM32F439NI = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429IG = {
+        family = "STM32F429xx",
+    },
+
+    STM32F429II = {
+        family = "STM32F429xx",
+    },
+
+    STM32F439VG = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439VI = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439ZG = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439ZI = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439BG = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439BI = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439NG = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439NI = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439IG = {
+        family = "STM32F439xx",
+    },
+
+    STM32F439II = {
+        family = "STM32F439xx",
+    },
+
+    STM32F401CB = {
+        family = "STM32F401xC",
+        segments = {
+            RAM    = { base = 0x20000000, size = 64*1024, mode = "rw" },
+            FLASH  = { base = 0x08000000, size = 64*1024, mode = "rx" },
+        },
+    },
+
+    STM32F401CC = {
+        family = "STM32F401xC",
+    },
+
+    STM32F401RB = {
+        family = "STM32F401xC",
+    },
+
+    STM32F401RC = {
+        family = "STM32F401xC",
+    },
+
+    STM32F401VB = {
+        family = "STM32F401xC",
+    },
+
+    STM32F401VC = {
+        family = "STM32F401xC",
+    },
+
+    STM32F401CD = {
+        family = "STM32F401xE",
+    },
+
+    STM32F401RD = {
+        family = "STM32F401xE",
+    },
+
+    STM32F401VD = {
+        family = "STM32F401xE",
+    },
+
+    STM32F401CE = {
+        family = "STM32F401xE",
+        segments = {
+            RAM    = { base = 0x20000000, size = 512*1024, mode = "rw" },
+            FLASH  = { base = 0x08000000, size = 96*1024,  mode = "rx" },
+        },
+    },
+
+    STM32F401RE = {
+        family = "STM32F401xE",
+        segments = {
+            RAM    = { base = 0x20000000, size = 128*1024, mode = "rw" },
+            FLASH  = { base = 0x08000000, size = 512*1024, mode = "rx" },
+            OPTIONS= { base = 0x1FFFC000, size = 8,        mode = "rw" },
+        },
+    },
+
+    STM32F401VE = {
+        family = "STM32F401xE",
+    },
+
+    STM32F411CC = {
+        family = "STM32F411xE",
+    },
+
+    STM32F411RC = {
+        family = "STM32F411xE",
+    },
+
+    STM32F411VC = {
+        family = "STM32F411xE",
+    },
+
+    STM32F411CE = {
+        family = "STM32F411xE",
+    },
+
+    STM32F411RE = {
+        family = "STM32F411xE",
+        segments = {
+            RAM     = { base = 0x20000000, size = 128*1024, mode = "rw" },
+            FLASH   = { base = 0x08000000, size = 512*1024, mode = "rx" },
+            OPTIONS = { base = 0x1FFFC000, size = 8,        mode = "rw" },
+        },
+    },
+
+    STM32F411VE = {
+        family = "STM32F411xE",
+    },
+
+    STM32F446MC = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446ME = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446RC = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446RE = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446VC = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446VE = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446ZC = {
+        family = "STM32F446xx",
+    },
+
+    STM32F446ZE = {
+        family = "STM32F446xx",
+    },
+
+    STM32F469AI = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469II = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469BI = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469NI = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469AG = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469IG = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469BG = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469NG = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469AE = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469IE = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469BE = {
+        family = "STM32F469xx",
+    },
+
+    STM32F469NE = {
+        family = "STM32F469xx",
+    },
+
+    STM32F479AI = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479II = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479BI = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479NI = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479AG = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479IG = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479BG = {
+        family = "STM32F479xx",
+    },
+
+    STM32F479NG = {
+        family = "STM32F479xx",
+    },
+
+    STM32F410R8 = {
+        family = "STM32F410Rx",
+    },
+
+    STM32F410RB = {
+        family = "STM32F410Rx",
+    },
+
+    STM32F410C8 = {
+        family = "STM32F410Cx",
+    },
+
+    STM32F410CB = {
+        family = "STM32F410Cx",
+    },
+
+    STM32F410T8 = {
+        family = "STM32F410Tx",
+    },
+
+    STM32F410TB = {
+        family = "STM32F410Tx",
+    },
+
+    //////////////////////////
+    // F7
+    //////////////////////////
+    STM32F745VE = {
+        family = "STM32F745xx",
+        segments   = { SRAM1   = { base = 0x20001000, size = 0x0003C000, mode = "rw" },
+                       SRAM2   = { base = 0x2004C000, size = 0x00004000, mode = "rw" },
+                       FLASH   = { base = 0x08000000, size = 0x00080000, mode = "rx" },
+                       SYSTEM  = { base = 0x00100000, size = 0x0000EDC0, mode = "rw" },
+                       AXIM    = { base = 0x08000000, size = 0x00100000, mode = "rw" },
+                       OPTIONS = { base = 0x1FFF0000, size = 0x00000020, mode = "rw" },
+                       ITCM    = { base = 0x00000000, size = 0x00004000, mode = "rw" },
+                       DTCM    = { base = 0x20000000, size = 0x00010000, mode = "rx" },
+                       RAM     = { base = 0x20000000, size = 0x00050000, mode = "rw" },
+                     },
+    },
+
+    STM32F745VG = {
+        family = "STM32F745xx",
+        segments   = { SRAM1   = { base = 0x20001000, size = 0x0003C000, mode = "rw" },
+                       SRAM2   = { base = 0x2004C000, size = 0x00004000, mode = "rw" },
+                       FLASH   = { base = 0x08000000, size = 0x00100000, mode = "rx" },
+                       SYSTEM  = { base = 0x00100000, size = 0x0000EDC0, mode = "rw" },
+                       AXIM    = { base = 0x08000000, size = 0x00100000, mode = "rw" },
+                       OPTIONS = { base = 0x1FFF0000, size = 0x00000020, mode = "rw" },
+                       ITCM    = { base = 0x00000000, size = 0x00004000, mode = "rw" },
+                       DTCM    = { base = 0x20000000, size = 0x00010000, mode = "rx" },
+                       RAM     = { base = 0x20000000, size = 0x00050000, mode = "rw" },
+                     },
+    },
+
+    STM32F745ZG = {
+        family = "STM32F745xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F745ZE = {
+        family = "STM32F745xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F745IE = {
+        family = "STM32F745xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F745IG = {
+        family = "STM32F745xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F746VE = {
+        family = "STM32F746xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F746VG = {
+        family = "STM32F746xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F746ZE = {
+        family = "STM32F746xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F746ZG = {
+        family = "STM32F746xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F746IE = {
+        family = "STM32F746xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F746IG = {
+        family = "STM32F746xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F746BE = {
+        family = "STM32F746xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F746BG = {
+        family = "STM32F746xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F746NE = {
+        family = "STM32F746xx",
+        segments = "STM32F745VE",
+    },
+
+    STM32F746NG = {
+        family = "STM32F746xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F756VG = {
+        family = "STM32F756xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F756ZG = {
+        family = "STM32F756xx",
+        segments = "STM32F745VG",
+    },
+
+    STM32F756IG = {
+        family = "STM32F756xx",
+    },
+
+    STM32F756BG = {
+        family = "STM32F756xx",
+    },
+
+    STM32F756NG = {
+        family = "STM32F756xx",
+    },
+
+
+    //////////////////////////
+    // L0
+    //////////////////////////
+    STM32L011K4 = {
+        family = "STM32L011xx",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 16*1024,   mode = "rx" },
+            // EEPROM = { base = 0x08080000, size = 512,       mode = "rx" },
+            RAM    = { base = 0x20000000, size = 2*1024,    mode = "rw" },
+        }
+    },
+
+    STM32L011G4 = {
+        family = "STM32L011xx",
+        segments = "STM32L011K4",
+    },
+
+    STM32L011F4 = {
+        family = "STM32L011xx",
+        segments = "STM32L011K4",
+    },
+
+    STM32L011E4 = {
+        family = "STM32L011xx",
+        segments = "STM32L011K4",
+    },
+
+    STM32L011D4 = {
+        family = "STM32L011xx",
+        segments = "STM32L011K4",
+    },
+
+    STM32L021D4 = {
+        family = "STM32L021xx",
+        segments = "STM32L011D4",
+    },
+
+    STM32L021F4 = {
+        family = "STM32L021xx",
+        segments = "STM32L011F4",
+    },
+
+    STM32L021G4 = {
+        family = "STM32L021xx",
+        segments = "STM32L011G4",
+    },
+
+    STM32L021K4 = {
+        family = "STM32L021xx",
+        segments = "STM32L011K4",
+    },
+
+    STM32L031C4 = {
+        family = "STM32L031xx",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 16*1024,   mode = "rx" },
+            // EEPROM = { base = 0x08080000, size = 1024,      mode = "rx" },
+            RAM    = { base = 0x20000000, size = 8*1024,    mode = "rw" },
+        }
+    },
+
+    STM32L031E4 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C4",
+    },
+
+    STM32L031F4 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C4",
+    },
+
+    STM32L031G4 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C4",
+    },
+
+    STM32L031K4 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C4",
+    },
+
+    STM32L031C6 = {
+        family = "STM32L031xx",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 32*1024,   mode = "rx" },
+            // EEPROM = { base = 0x08080000, size = 1024,      mode = "rx" },
+            RAM    = { base = 0x20000000, size = 8*1024,    mode = "rw" },
+        }
+    },
+
+    STM32L031E6 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C6",
+    },
+
+    STM32L031F6 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C6",
+    },
+
+    STM32L031G6 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C6",
+    },
+
+    STM32L031K6 = {
+        family = "STM32L031xx",
+        segments = "STM32L031C6",
+    },
+
+    STM32L041C4 = {
+        family = "STM32L041xx",
+        segments = "STM32L031C4",
+    },
+
+    STM32L041F4 = {
+        family = "STM32L041xx",
+        segments = "STM32L031K4",
+    },
+
+    STM32L041G4 = {
+        family = "STM32L041xx",
+        segments = "STM32L031K4",
+    },
+
+    STM32L041K4 = {
+        family = "STM32L041xx",
+        segments = "STM32L031K4",
+    },
+
+    STM32L041C6 = {
+        family = "STM32L041xx",
+        segments = "STM32L031C6",
+    },
+
+    STM32L041F6 = {
+        family = "STM32L041xx",
+        segments = "STM32L031F6",
+    },
+
+    STM32L041G6 = {
+        family = "STM32L041xx",
+        segments = "STM32L031G6",
+    },
+
+    STM32L041K6 = {
+        family = "STM32L041xx",
+        segments = "STM32L031K6",
+    },
+
+    STM32L051C6 = {
+        family = "STM32L051xx",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 32*1024,   mode = "rx" },
+            // EEPROM = { base = 0x08080000, 2*size = 1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 8*1024,    mode = "rw" },
+        }
+    },
+
+    STM32L051K6 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C6",
+    },
+
+    STM32L051R6 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C6",
+    },
+
+    STM32L051T6 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C6",
+    },
+
+    STM32L051C8 = {
+        family = "STM32L051xx",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 64*1024,   mode = "rx" },
+            // EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 8*1024,    mode = "rw" },
+        }
+    },
+
+    STM32L051K8 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C8",
+    },
+
+    STM32L051R8 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C8",
+    },
+
+    STM32L051T8 = {
+        family = "STM32L051xx",
+        segments = "STM32L051C8",
+    },
+
+    STM32L052C6 = {
+        family = "STM32L052xx",
+        segments = "STM32L051C6",
+    },
+
+    STM32L052K6 = {
+        family = "STM32L052xx",
+        segments = "STM32L051K6",
+    },
+
+    STM32L052R6 = {
+        family = "STM32L052xx",
+        segments = "STM32L051R6",
+    },
+
+    STM32L052T6 = {
+        family = "STM32L052xx",
+        segments = "STM32L051T6",
+    },
+
+    STM32L052C8 = {
+        family = "STM32L052xx",
+        segments = "STM32L051C8",
+    },
+
+    STM32L052K8 = {
+        family = "STM32L052xx",
+        segments = "STM32L051K8",
+    },
+
+    STM32L052R8 = {
+        family = "STM32L052xx",
+        segments = "STM32L051R8",
+    },
+
+    STM32L052T8 = {
+        family = "STM32L052xx",
+        segments = "STM32L051T8",
+    },
+
+    STM32L053C6 = {
+        family = "STM32L053xx",
+    },
+
+    STM32L053C8 = {
+        family = "STM32L053xx",
+    },
+
+    STM32L053R6 = {
+        family = "STM32L053xx",
+    },
+
+    STM32L053R8 = {
+        family = "STM32L053xx",
+    },
+
+    STM32L062K8 = {
+        family = "STM32L062xx",
+    },
+
+    STM32L063C8 = {
+        family = "STM32L063xx",
+    },
+
+    STM32L063R8 = {
+        family = "STM32L063xx",
+    },
+
+    STM32L071V8 = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071K8 = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071VB = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071RB = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071CB = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071KB = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071VZ = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071RZ = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071CZ = {
+        family = "STM32L071xx",
+    },
+
+    STM32L071KZ = {
+        family = "STM32L071xx",
+    },
+
+    STM32L072V8 = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072VB = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072RB = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072CB = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072VZ = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072RZ = {
+        family = "STM32L072xx",
+    },
+
+    STM32L072CZ = {
+        family = "STM32L072xx",
+    },
+
+    STM32L073V8 = {
+        family = "STM32L073xx",
+    },
+
+    STM32L073VB = {
+        family = "STM32L073xx",
+    },
+
+    STM32L073RB = {
+        family = "STM32L073xx",
+    },
+
+    STM32L073VZ = {
+        family = "STM32L073xx",
+    },
+
+    STM32L073RZ = {
+        family = "STM32L073xx",
+    },
+
+    STM32L082KBU = {
+        family = "STM32L082xx",
+    },
+
+    STM32L082KZU = {
+        family = "STM32L082xx",
+    },
+
+    STM32L083V8 = {
+        family = "STM32L083xx",
+    },
+
+    STM32L083VB = {
+        family = "STM32L083xx",
+    },
+
+    STM32L083RB = {
+        family = "STM32L083xx",
+    },
+
+    STM32L083VZ = {
+        family = "STM32L083xx",
+    },
+
+    STM32L083RZ = {
+        family = "STM32L083xx",
+    },
+
+    //////////////////////////
+    // L1
+    //////////////////////////
+    STM32L100C6 = {
+        family = "STM32L100xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 32*1024,   mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 4*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L100R8 = {
+        family = "STM32L100xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 64*1024,   mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 8*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L100RB = {
+        family = "STM32L100xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 128*1024,  mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 10*1024,   mode = "rw" },
+        },
+    },
+
+
+    STM32L100C6_A = {
+        family = "STM32L100xBA",
+        segments = "STM32L100C6",
+    },
+
+    STM32L100R8_A = {
+        family = "STM32L100xBA",
+        segments = "STM32L100C8",
+    },
+
+    STM32L100RB_A = {
+        family = "STM32L100xBA",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 128*1024,  mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
+            RAM    = { base = 0x20000000, size = 16*1024,   mode = "rw" },
+        },
+    },
+
+
+    STM32L100RC = {
+        family = "STM32L100xC",
+    },
+
+    STM32L151C6 = {
+        family = "STM32L151xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 32*1024,    mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 4*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 10*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151R6 = {
+        family = "STM32L151xB",
+        segments = "STM32L151C6",
+    },
+
+    STM32L151C8 = {
+        family = "STM32L151xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 64*1024,    mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 4*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 10*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151R8 = {
+        family = "STM32L151xB",
+        segments = "STM32L151C8",
+    },
+
+    STM32L151V8 = {
+        family = "STM32L151xB",
+        segments = "STM32L151C8",
+    },
+
+    STM32L151CB = {
+        family = "STM32L151xB",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 128*1024,    mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 4*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 16*1024,     mode = "rw" },
+        },
+    },
+
+    STM32L151RB = {
+        family = "STM32L151xB",
+        segments = "STM32L151CB",
+    },
+
+    STM32L151VB = {
+        family = "STM32L151xB",
+        segments = "STM32L151CB",
+    },
+
+
+    STM32L151C6_A = {
+        family = "STM32L151xBA",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 32*1024,    mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 4*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 16*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151R6_A = {
+        family = "STM32L151xBA",
+        segments = "STM32L151C6_A",
+    },
+
+    STM32L151C8_A = {
+        family = "STM32L151xBA",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 64*1024,    mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 4*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 32*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151R8_A = {
+        family = "STM32L151xBA",
+        segments = "STM32L151C8_A",
+    },
+
+    STM32L151V8_A = {
+        family = "STM32L151xBA",
+        segments = "STM32L151C8_A",
+    },
+
+    STM32L151CB_A = {
+        family = "STM32L151xBA",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 128*1024,   mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 8*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 32*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151RB_A = {
+        family = "STM32L151xBA",
+        segments = "STM32L151CB_A",
+    },
+
+    STM32L151VB_A = {
+        family = "STM32L151xBA",
+        segments = "STM32L151CB_A",
+    },
+
+    STM32L151CC = {
+        family = "STM32L151xC",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 256*1024,   mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 8*1024,     mode = "rx" },
+            RAM    = { base = 0x20000000, size = 32*1024,    mode = "rw" },
+        },
+    },
+
+    STM32L151UC = {
+        family = "STM32L151xC",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151RC = {
+        family = "STM32L151xC",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151VC = {
+        family = "STM32L151xC",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151RC_A = {
+        family = "STM32L151xCA",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151VC_A = {
+        family = "STM32L151xCA",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151QC = {
+        family = "STM32L151xCA",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151ZC = {
+        family = "STM32L151xCA",
+        segments = "STM32L151CC",
+    },
+
+    STM32L151QD = {
+        family = "STM32L151xD",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 384*1024,  mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 12*1024,   mode = "rx" },
+            RAM    = { base = 0x20000000, size = 48*1024,   mode = "rw" },
+        },
+    },
+
+    STM32L151RD = {
+        family = "STM32L151xD",
+        segments = "STM32L151QD",
+    },
+
+    STM32L151VD = {
+        family = "STM32L151xD",
+        segments = "STM32L151QD",
+    },
+
+    STM32L151ZD = {
+        family = "STM32L151xD",
+        segments = "STM32L151QD",
+    },
+
+    STM32L151QE = {
+        family = "STM32L151xE",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 512*1024,  mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 16*1024,   mode = "rx" },
+            RAM    = { base = 0x20000000, size = 80*1024,   mode = "rw" },
+        },
+    },
+
+    STM32L151RE = {
+        family = "STM32L151xE",
+        segments = "STM32L151QE",
+    },
+
+    STM32L151VE = {
+        family = "STM32L151xE",
+        segments = "STM32L151QE",
+    },
+
+    STM32L151ZE = {
+        family = "STM32L151xE",
+        segments = "STM32L151QE",
+    },
+
+    STM32L151VD_X = {
+        family = "STM32L151xDX",
+        segments = {
+            FLASH  = { base = 0x08000000, size = 384*1024,  mode = "rx" },
+            EEPROM = { base = 0x08080000, size = 16*1024,   mode = "rx" },
+            RAM    = { base = 0x20000000, size = 80*1024,   mode = "rw" },
+        },
+    },
+
+    STM32L152C6 = {
+        family = "STM32L152xB",
+        segments = "STM32L151C6",
+    },
+
+    STM32L152R6 = {
+        family = "STM32L152xB",
+        segments = "STM32L151R6",
+    },
+
+    STM32L152C8 = {
+        family = "STM32L152xB",
+        segments = "STM32L151C8",
+    },
+
+    STM32L152R8 = {
+        family = "STM32L152xB",
+        segments = "STM32L151R8",
+    },
+
+    STM32L152V8 = {
+        family = "STM32L152xB",
+        segments = "STM32L151V8",
+    },
+
+    STM32L152CB = {
+        family = "STM32L152xB",
+        segments = "STM32L151CB",
+    },
+
+    STM32L152RB = {
+        family = "STM32L152xB",
+        segments = "STM32L151RB",
+    },
+
+    STM32L152VB = {
+        family = "STM32L152xB",
+        segments = "STM32L151VB",
+    },
+
+    STM32L152C6_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151C6_A",
+    },
+
+    STM32L152R6_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151C6_A",
+    },
+
+    STM32L152C8_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151C8_A",
+    },
+
+    STM32L152R8_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151C8_A",
+    },
+
+    STM32L152V8_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151V8_A",
+    },
+
+    STM32L152CB_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151CB_A",
+    },
+
+    STM32L152RB_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151RB_A",
+    },
+
+    STM32L152VB_A = {
+        family = "STM32L152xBA",
+        segments = "STM32L151VB_A",
+    },
+
+    STM32L152CC = {
+        family = "STM32L152xC",
+    },
+
+    STM32L152UC = {
+        family = "STM32L152xC",
+    },
+
+    STM32L152RC = {
+        family = "STM32L152xC",
+    },
+
+    STM32L152VC = {
+        family = "STM32L152xC",
+    },
+
+    STM32L152RC_A = {
+        family = "STM32L152xCA",
+    },
+
+    STM32L152VC_A = {
+        family = "STM32L152xCA",
+    },
+
+    STM32L152QC = {
+        family = "STM32L152xCA",
+    },
+
+    STM32L152ZC = {
+        family = "STM32L152xCA",
+    },
+
+    STM32L152QD = {
+        family = "STM32L152xD",
+    },
+
+    STM32L152RD = {
+        family = "STM32L152xD",
+    },
+
+    STM32L152VD = {
+        family = "STM32L152xD",
+    },
+
+    STM32L152ZD = {
+        family = "STM32L152xD",
+    },
+
+    STM32L152QE = {
+        family = "STM32L152xE",
+        segments = "STM32L151QE",
+    },
+
+    STM32L152RE = {
+        family = "STM32L152xE",
+        segments = "STM32L151RE",
+    },
+
+    STM32L152VE = {
+        family = "STM32L152xE",
+        segments = "STM32L151VE",
+    },
+
+    STM32L152ZE = {
+        family = "STM32L152xE",
+        segments = "STM32L151ZE",
+    },
+
+    STM32L152VD_X = {
+        family = "STM32L152xDX",
+        segments = "STM32L151VD_X",
+    },
+
+    STM32L162RC = {
+        family = "STM32L162xC",
+    },
+
+    STM32L162VC = {
+        family = "STM32L162xC",
+    },
+
+    STM32L162RC_A = {
+        family = "STM32L162xCA",
+    },
+
+    STM32L162VC_A = {
+        family = "STM32L162xCA",
+    },
+
+    STM32L162QC = {
+        family = "STM32L162xCA",
+    },
+
+    STM32L162ZC = {
+        family = "STM32L162xCA",
+    },
+
+    STM32L162QD = {
+        family = "STM32L162xD",
+    },
+
+    STM32L162RD = {
+        family = "STM32L162xD",
+    },
+
+    STM32L162VD = {
+        family = "STM32L162xD",
+    },
+
+    STM32L162ZD = {
+        family = "STM32L162xD",
+    },
+
+    STM32L162RE = {
+        family = "STM32L162xE",
+    },
+
+    STM32L162VE = {
+        family = "STM32L162xE",
+    },
+
+    STM32L162ZE = {
+        family = "STM32L162xE",
+    },
+
+    STM32L162VD_X = {
+        family = "STM32L162xDX",
+    },
+
+    //////////////////////////
+    // L4
+    //////////////////////////
+    STM32L471RG = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471JG = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471VG = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471QG = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471ZG = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471RE = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471JE = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471VE = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471QE = {
+        family = "STM32L471xx",
+    },
+
+    STM32L471ZE = {
+        family = "STM32L471xx",
+    },
+
+    STM32L475RG = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475JG = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475VG = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475QG = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475ZG = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475RE = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475JE = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475VE = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475QE = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475ZE = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475RC = {
+        family = "STM32L475xx",
+    },
+
+    STM32L475VC = {
+        family = "STM32L475xx",
+    },
+
+    STM32L476RG = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476JG = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476VG = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476QG = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476ZG = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476RE = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476JE = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476VE = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476QE = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476ZE = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476RC = {
+        family = "STM32L476xx",
+    },
+
+    STM32L476VC = {
+        family = "STM32L476xx",
+    },
+
+    STM32L485JC = {
+        family = "STM32L485xx",
+    },
+
+    STM32L485JE = {
+        family = "STM32L485xx",
+    },
+
+    STM32L486RG = {
+        family = "STM32L486xx",
+    },
+
+    STM32L486JG = {
+        family = "STM32L486xx",
+    },
+
+    STM32L486VG = {
+        family = "STM32L486xx",
+    },
+
+    STM32L486QG = {
+        family = "STM32L486xx",
+    },
+
+    STM32L486ZG = {
+        family = "STM32L486xx",
+    },
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Boards and their processor assignments
+// Note for Squirrel reasons, any board name containing '-' has been modified
+// to change the '-' to an underscore '_'.
+Boards <- {
+    // F0 boards
+    // F1 boards
+    // F2 boards
+    // F3 boards
+    // F4 boards
+    STM324x9I_EVAL         = [ "STM32F429xx", "STM32F439xx" ],
+    STM324xG_EVAL          = [ "STM32F407xx", "STM32F417xx" ],
+    STM32F4_Discovery      = [ "STM32F407xx" ],
+    STM32F401_Discovery    = [ "STM32F401xC" ],
+    STM32F429I_Discovery   = [ "STM32F429xx" ],
+    STM32F401RE_Nucleo     = [ "STM32F401xE" ],
+    STM32F411RE_Nucleo     = [ "STM32F411xE" ],
+    STM32446E_EVAL         = [ "STM32F446xx" ],
+    STM32F446E_Nucleo      = [ "STM32F446xx" ],
+    STM32469I_EVAL         = [ "STM32F469xx" ],
+    STM32F469I_Discovery   = [ "STM32F469xx" ],
+    STM32F410x_Nucleo      = [ "STM32F410xx" ],
+    STM32F429ZI_Nucleo     = [ "STM32F429ZI" ],
+    STM32F446ZE_Nucleo     = [ "STM32F446ZE" ],
+    STM32F411E_Discovery   = [ "STM32F411xE" ],
+    // F7 boards
+    // L0 boards
+    // L1 boards
+    // L4 boards
+}
+

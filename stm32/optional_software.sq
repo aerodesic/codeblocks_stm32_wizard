@@ -1,0 +1,977 @@
+///////////////////////////////////////////////////////////////////////////////////
+// Helper functions for accessing things in the Optional_Software table.
+///////////////////////////////////////////////////////////////////////////////////
+
+// Return the contents of a cell.  If a function, call it, else return the item
+// itself.  <context> is a value passed to the class member allowing it to access
+// 'global' functions within the main program.
+function GetContentsOf(context, item) {
+    if (typeof(item) == "function") {
+        return item(context);
+    } else {
+        return item;
+    }
+}
+
+// These two allow reading files and folders from the software class
+function ReadDirContents(folder, mask, dirflags) {
+    return IO.ReadDirContents(FolderInCube(folder), mask, dirflags);
+}
+
+function ReadFileContents(folder) {
+    return IO.ReadFileContents(FolderInCube(folder));
+}
+
+
+function FindOptionalSoftwareByPanelId(pageid) {
+    foreach (software in Optional_Software) {
+        if (software.pageid == pageid) {
+            return software;
+        }
+    }
+
+    return null;
+}
+
+
+Optional_Software <- [];
+
+///////////////////////////////////////////////////////////////////////////////////
+// Table controlling generation of optional packages
+//
+// Each entry is the name of a software package.  Some are internal, such as "Libs"
+// an "HAL".  Others come from "thirdparty" and "st" branches within the Cube
+// folder.
+//
+// For each package in the table contains it's own table with the following keys:
+//
+// Member functions:
+//    set_selected        - a function that will load the 'selections' entry in the package
+//    has_enable_checkbox - function return true if to show enable checkbox
+//    is_enabled          - function - return true if enabled for generation
+//    set_enabled         - function to set/clear enabled
+//    set_selections      - function that puts current selection back into table.
+//    configure           - configure the table for access after all global data has been loaded
+//    generate            - function that will cause the items to populate the project
+//
+// Member variables:
+//    addtoproject        - an array of directives of software to be copied to project.
+//    addtomacros         - an array of directives to create macros for project generation.
+//    extradefines        - an array of extra -D symbols
+//    definemacros        - an array of define macro values (rather than appending to an existing macro)
+//    template            - an array of directives that create project-owned templates of some file.
+//
+// The calling/accessing order of these is:
+//    During Dialog phase, <select> is called by options page to populate dialog
+//    and set_selections is called to return values to the table.
+//
+// During file generation phase:
+//    1) extradefines
+//    2) definemacros
+//    3) addtomacros
+//    4) addtoproject
+//    5) templates
+//    6) generate
+//
+// Note: all functions include a first parameter <context> which is the execution
+// context of the main application.  This allows accessing global variables and
+// function from within the object.
+//
+///////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////
+// Base class for optional software selection panel
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftware {
+    name = "";
+    realname = "";
+    pageid = "";
+    description = "";
+    nextpageid = null;
+    enabled = true;
+    has_enable = true;
+    single = false;
+    checkbox = null;
+    checkbox_label = "";
+    grid = false;
+    selections = {};
+    addtomacros = [];
+    definemacros = [];
+    addtoproject = [];
+    extradefines = [];
+    templates = [];
+
+    constructor(name, realname, pageid, description) {
+        this.name = name;
+        this.realname = realname;
+        this.pageid = pageid;
+        this.description = description;
+    }
+
+    // Perform any initialization necessary
+    function configure(context) {
+        this.selections = {};
+    }
+
+    function set_checkbox(enable, label) {
+        this.checkbox = enable;
+        this.checkbox_label = label;
+    }
+
+    // Return true if object is enabled to generated code and be edited
+    function is_enabled() {
+        return this.enabled;
+    }
+
+    function has_enable_checkbox() {
+        return this.has_enable;
+    }
+
+    // Set an object enabled or disabled.
+    // For multi-part objects, the 'enable' state is down-propagated to
+    // enable/disable visibility for subordinate objects.
+    function set_enabled(context, enable = true) {
+        // Ignore redundant calls
+        if (enable != this.enabled) {
+            // Propagate enable down through nextpageid changing enable
+context.LogDebug(_T(format("set_enabled '%s' = %s", this.pageid, enabled ? "true" : "false")));
+            this.enabled = enable;
+            if (this.nextpageid) {
+                local nextpage = context.FindOptionalSoftwareByPanelId(this.nextpageid);
+                if (nextpage) {
+                    nextpage.set_enabled(context, enable);
+                }
+            }
+        }
+    }
+
+    // Get table of selectable components.  The value of a component is true if selected.
+    // This function returns a table of values:
+    //     selections = the list of selections
+    //     title = a title to display in Title and Enable button
+    //     single = true if only a single option can be selected at a time
+    //     sort = true if list needs to be sorted before sending to combo display
+    function get_selected(context) {
+        local results = {
+            selections = this.selections,
+            title = this.description,
+            single = this.single,
+            sort = false,
+        };
+        if (checkbox != null) {
+            results.checkbox <- { value = this.checkbox, title = this.checkbox_label };
+        }
+        return results;
+    }
+
+    // Return true if object should be visible on notebook
+    function is_visible() {
+        return true;
+    }
+
+    function is_grid() {
+        return this.grid;
+    }
+
+    // Set the selection for items.  The new_selections is a list
+    // containing an instance for each object to be selected.
+    function set_selections(context, new_selections, checkbox = false) {
+        // Clear original selections
+        foreach (name, value in this.selections) {
+            this.selections[name] <- false;
+        } 
+
+        // Set the ones passed in
+        foreach (name, value in new_selections) {
+            this.selections[name] <- value;
+        }
+
+        // Don't set checkbox if it hasn't been defined
+        if (this.checkbox != null) {
+            this.checkbox = checkbox;
+        }
+    }
+
+    // Called to generate any macros / files just before project creation
+    function generate(context) {
+context.LogDebug(_T("Base level generate called for '" + this.name + "'"));
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// Optional Library selections
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareLibs extends OptionalSoftware {
+    constructor() {
+        ::OptionalSoftware.constructor("Libs", "Libs", "Libs", "Extra Libraries");
+    }
+
+    function configure(context) {
+        ::OptionalSoftware.configure(context);
+        foreach (name in Cube.libs) {
+            selections[name] <- false;
+        }
+    }
+
+    function generate(context) {
+        ::OptionalSoftware.generate(context);
+        foreach(lib, selected in selections) {
+            if (selected) {
+                context.AddLibraryToProject(context.FixupPathname(STM32_CMSIS_Lib_folder + lib));
+            }
+        }
+    }
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareLibs());
+
+/////////////////////////////////////////////////////////////////////////////////
+// Optional Hardware Abstraction Layer components
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareHAL extends OptionalSoftware {
+    checkbox = false;
+    checkbox_label = "Enable Full LL libraries";
+
+    constructor() {
+        ::OptionalSoftware.constructor("HAL", "HAL", "HAL", "Hardware Abstraction Layer");
+        set_checkbox(false, "Use full LL library");
+    }
+
+    function configure (context) {
+        ::OptionalSoftware.configure(context);
+
+        foreach (name, value in Cube.hal.compile) {
+            this.selections[name] <- false;
+        }
+
+        foreach (name, value in Cube.hal.include) {
+            this.selections[name] <- false;
+        }
+
+        // Select default values
+        foreach (name in context.GetProcessorOption(Processor, "halcheck", [])) {
+            this.selections[name] <- true;
+        }
+    }
+
+    function set_selections(context, selections, checkbox = false) {
+        // Clear original selections
+        foreach (name, value in this.selections) {
+            // Don't mess with the internal names
+            if (name[0] != '.') {
+                this.selections[name] <- false;
+            }
+        } 
+
+        // Add the current back in
+        foreach (name, value in selections) {
+            this.selections[name] <- value;
+        }
+
+        this.checkbox = checkbox;
+    }
+
+    function generate(context) {
+        ::OptionalSoftware.generate(context);
+        // Cause each selected main file to be copied to project
+        foreach(hal, selected in this.selections) {
+            if (selected) {
+                if (hal in Cube.hal.compile) {
+                    foreach (file in Cube.hal.compile[hal]) {
+                        context.AddProjectFile(context.FixupPathname(HAL_src_dir),   // Target folder
+                                               context.FixupPathname(file),          // Source file
+                                               COMPILE_AND_LINK,             // build flags
+                                               null                          // Copy file
+                                               );
+                    }
+                }
+                if (hal in Cube.hal.include) {
+                    foreach (file in Cube.hal.include[hal]) {
+                        context.AddProjectFile(context.FixupPathname(HAL_inc_dir),   // Target folder
+                                               context.FixupPathname(file),          // Source file
+                                               NO_COMPILE_NO_LINK,           // build flags
+                                               null                          // Copy file
+                                               );
+                    }
+                }
+            }
+            // Pull in the required files
+            foreach (name in context.STM32_HAL_Required.compile) {
+                local source = _T(name);
+                local target_folder = context.PathOf(source);
+                source.Replace(_T("[family]"), STM32_family_name);
+                context.AddProjectFile(context.FixupPathname(HAL_src_dir + target_folder + "/"),   // Target folder
+                                       context.FixupPathname(STM32_HAL_c_folder + source), // Source
+                                       COMPILE_AND_LINK,             // build flags
+                                       null                          // Copy file
+                                       );
+            }
+
+            foreach (name in context.STM32_HAL_Required.include) {
+                local source = _T(name);
+                local target_folder = context.PathOf(source);
+                source.Replace(_T("[family]"), STM32_family_name);
+                context.AddProjectFile(context.FixupPathname(HAL_inc_dir + target_folder + "/"),   // Target folder
+                                       context.FixupPathname(STM32_HAL_h_folder + source), // Source
+                                       NO_COMPILE_NO_LINK,           // build flags
+                                       null                          // Copy file
+                                       );
+            }
+        }
+
+        local haldefine = context.GenerateHALconfiguration(this.selections, this.checkbox);
+
+        foreach (item in haldefine) {
+            context.AddProjectFile(context.FixupPathname(item.target),
+                                   _T(item.source),
+                                   item.build_flags,
+                                   null,
+                                   _T(item.alternate),
+                                   /* generate */ true);
+        }
+
+        context.Extra_Include_Paths.append(HAL_inc_dir);
+    }
+
+    addtomacros = [
+        {
+            // Add this to the include contents.
+            macro = "[MAIN_INCLUDES]",
+            // Evaluated after initialization
+            text = function(context) {
+                return "#include \"" + System_basename + "_hal.h\"\n";
+            },
+        },
+        {
+            // Add this contents for main.c
+            macro = "[MAIN_INITIALIZE_HARDWARE]",
+            text = "    // Initialize HAL\n" +
+                   "    HAL_Init();\n",
+        },
+    ]
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareHAL());
+
+/////////////////////////////////////////////////////////////////////////////////
+// FreeRTOS configuration
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareFreeRTOS extends OptionalSoftware {
+
+    // I have disabled the ranges on the numeric values since there seems to be a bug in the
+    // gtk spinner code in the grid component usage.  Gets lots of 'NULL pointer' warnings
+    // and crashes the application with a seg fault...  Probably do need a way to do a limit
+    // check, though...
+    config_options = [
+        // config symbol                     type      prompt                            value
+        [ "configUSE_PREEMPTION",            "bool",   "Use premption",                  true ],
+        [ "configUSE_IDLE_HOOK",             "bool",   "Use idle hook",                  false ],
+        [ "configUSE_TICK_HOOK",             "bool",   "Use tick hook",                  false ],
+        [ "configCPU_CLOCK_HZ",              "choice", "CPU clock Hz",                   "SystemCoreClock",
+                                                                                         "SystemCoreClock" ],
+        [ "configTICK_RATE_HZ",              "int",    "Tick rate Hz",                   1000,    /* 1, 5000 */ ],
+        [ "configMAX_PRIORITIES",            "int",    "Max priorities",                 7,       /* 1, 10 */ ],
+        [ "configMINIMAL_STACK_SIZE",        "int",    "Min stack size (bytes)",         128,     /* 64, 1024 */ ],
+        [ "configTOTAL_HEAP_SIZE",           "int",    "Total heap size (Kbytes)",       15,      /* 1, 1024 */ ],
+        [ "configMAX_TASK_NAME_LEN",         "int",    "Max task name length",           8,       /* 32, 16 */ ],
+        [ "configUSE_TRACE_FACILITY",        "bool",   "Use trace facility",             true ],
+        [ "configUSE_16_BIT_TICKS",          "bool",   "Use 16 bit ticks",               true ],
+        [ "configIDLE_SHOULD_YIELD",         "bool",   "Idle should yield",              true ],
+        [ "configUSE_MUTEXES",               "bool",   "Use mutexes",                    true ],
+        [ "configQUEUE_REGISTRY_SIZE",       "int",    "Queue registry size (elements)", 8,       /* 1, 16 */ ],
+        [ "configCHECK_FOR_STACK_OVERFLOW",  "bool",   "Check for stack overflow",       false ],
+        [ "configUSE_RECURSIVE_MUTEXES",     "bool",   "Use recursive mutexes",          true ],
+        [ "configUSE_MALLOC_FAILED_HOOK",    "bool",   "Use malloc-failed hook",         false ],
+        [ "configUSE_APPLICATION_TASK_TAG",  "bool",   "Use application task tag",       false ],
+        [ "configUSE_COUNTING_SEMAPHORES",   "bool",   "Use counting semaphores",        true ],
+        [ "configGENERATE_RUN_TIME_STATS",   "bool",   "Generate run-time stats",        false ],
+        [ "configUSE_CO_ROUTINES",           "bool",   "Use co-routines",                false ],
+        [ "configMAX_CO_ROUTINE_PRIORITIES", "int",    "Max co-routine priorities",      2,       /* 1, 10 */ ],
+        [ "configUSE_TIMERS",                "bool",   "Use timers",                     false ],
+        [ "configTIMER_TASK_PRIORITY",       "int",    "Timer task priority",            2,       /* 1, 10, */ ],
+        [ "configTIMER_QUEUE_LENGTH",        "int",    "Timer queue length",             10,      /* 1, 64, */ ],
+        [ "INCLUDE_vTaskPrioritySet",        "bool",   "Include vTaskPrioritySet",       true ],
+        [ "INCLUDE_uxTaskPriorityGet",       "bool",   "Include uxTaskPriorityGet",      true ],
+        [ "INCLUDE_vTaskDelete",             "bool",   "Include vTaskDelete",            true ],
+        [ "INCLUDE_vTaskCleanUpResources",   "bool",   "Include vTaskCleanUpResource",   false ],
+        [ "INCLUDE_vTaskSuspend",            "bool",   "Include vTaskSuspend",           true ],
+        [ "INCLUDE_vTaskDelayUntil",         "bool",   "Include vTaskDelayUntil",        false ],
+        [ "INCLUDE_vTaskDelay",              "bool",   "Include vTaskDelay",             true ],
+        [ "INCLUDE_xTaskGetSchedulerState",  "bool",   "Include xTaskGetSchedulerState", true ],
+    ];
+
+    // Use these formats for the defaults
+    config_type_formats = {
+       int    = "(%d)",
+       float  = "(%f)",
+       choice = "(%s)",
+       bool   = "(%d)",
+    }
+
+    // Apply formats to these specific items
+    config_formats = {
+       configTICK_RATE_HZ       = "((TickType_t)%d)",
+       configMINIMAL_STACK_SIZE = "((uint16_t)%d)",
+       configTOTAL_HEAP_SIZE    = "(uint16_t)(%d * 1024)",
+    }
+
+
+    // Table that indexes symbol name from prompt.  Created during initialize
+    config_by_prompt = {}  // Build during initialization
+
+    constructor() {
+        ::OptionalSoftware.constructor("FreeRTOS", "FreeRTOS", "FreeRTOS", "FreeRTOS Real-Time configuration");
+        this.enabled = false;
+        this.grid = true;
+        this.nextpageid = "FreeRTOSmemory";
+    }
+
+
+    function configure(context) {
+        ::OptionalSoftware.configure(context);
+        foreach (option in this.config_options) {
+            this.selections[option[0]] <- option[3];
+
+            // Build reverse table of prompt->values.
+            this.config_by_prompt[option[2]] <- { name = option[0], type = option[1], def_value = option[3] };
+        }
+    }
+
+    // Returns a selection list for the ListCtrl
+    function get_selected(context) {
+        local select = ::OptionalSoftware.get_selected(context);
+
+        delete select.selections;
+        select.columns <- 2,
+        select.column_labels <- [];  // No column labels
+        select.data <- [];
+        select.message <- "Edit the FreeRTOS configuration:";
+
+        foreach (values in this.config_options) {
+            local name = values[0];
+            local type = values[1];
+            local label = values[2];
+            local current = this.selections[name];
+
+            // Column 0 is label
+            select.data.append(label);
+
+            // Column 1 is value
+            switch (type) {
+                case "bool": {
+                    select.data.append(format("bool\t%d", current.tointeger()));
+                    break;
+                }
+                case "int": {
+                    if (values.len() > 4) {
+                        select.data.append(format("int\t%d\t%d\t%d", current, values[4].tointeger(), values[5].tointeger()));
+                    } else {
+                        select.data.append(format("int\t%d", current));
+                    }
+                    break;
+                }
+                case "float": {
+                    if (values.len() > 4) {
+                        // Include precision and width
+                        select.data.append(format("float\t%f\t%d\t%d", current, values[4].tointeger(), values[5].tointeger()));
+                    } else {
+                        // Omit precision and width
+                        select.data.append(format("float\t%f", current));
+                    }
+                    break;
+                }
+                case "choice": {
+                    select.data.append(format("choice\t%s\t%s", current, values[4]));
+                    break;
+                }
+            }
+        }
+
+        return select;
+    }
+
+    // The selections contain the prompt (column 0 from the grid) as the
+    // table entry.  The value is the column 1 value.  Ignore any other columns.
+    function set_selections(context, selections, checkbox = false) {
+        foreach (prompt, values in selections) {
+            local config_info = config_by_prompt[prompt];
+            local value = split(values, "\t")[0];
+            
+            // Place the values back into the selection table with appropriate types
+            switch (config_info.type) {
+                case "int": {
+                    // Integer value
+                    this.selections[config_info.name] = value.tointeger();
+                    break;
+                }
+                case "float": {
+                    // Float value
+                    this.selections[config_info.name] = value.tofloat();
+                    break;
+                }
+                case "bool": {
+                    // Boolean value
+                    this.selections[config_info.name] = value.tointeger() != 0;
+                    break;
+                }
+                case "choice": {
+                    // String value
+                    this.selections[config_info.name] = value;
+                    break;
+                }
+                default: {
+                    // String value
+                    this.selections[config_info.name] = value;
+                    break;
+                }
+            }
+        }
+
+        // Don't set checkbox if it hasn't been defined
+        if (this.checkbox != null) {
+            this.checkbox = checkbox;
+        }
+    }
+
+    function generate(context) {
+       ::OptionalSoftware.generate(context);
+       // Generate the config file
+       local source = context.FixupPathname(STM32_Thirdparty_folder.tostring() +
+                                            "FreeRTOS/Source/include/FreeRTOSConfig_template.h");
+       local template_contents = context.ReadFileContents(source);
+
+context.LogDebug(_T(format("FreeRTOS config generate: read %d bytes from template", template_contents.len())));
+
+       // Replace the edited items in the config folder
+       foreach (config_item in this.config_options) {
+           local name = config_item[0];
+           local fmt = config_item[1];
+           local value = this.selections[name];
+
+           // Convert to type
+           switch (fmt) {
+               case "int": {
+                   value = value.tointeger();
+                   break;
+               }
+               case "bool": {
+                   value = value.tointeger();
+                   break;
+               }
+               case "float": {
+                   value = value.tofloat();
+                   break
+               }
+               default: {
+                   value = value.tostring();
+                   break;
+               }
+           }
+
+           local replacement;
+           if (name in this.config_formats) {
+               // Run it through a format
+               replacement = format(this.config_formats[name], value);
+           } else {
+               // Run through format based on type
+               replacement = format(this.config_type_formats[fmt], value);
+           }
+
+context.LogDebug(_T("FreeRTOS config generate: name '" + name + "' value '" + value + "'"));
+
+           // Look for symbol surrouned by blanks for delimiting.
+           local start = template_contents.Find(_T(" " + name + " "));
+
+           if (start >= 0) {
+               start += name.len() + 1;  // Skip to blank past name
+               local eol = template_contents.FindNext(_T("\n"), start);
+
+               if (eol < 0) {
+                   eol = template_contents.len();
+               }
+
+context.LogDebug(_T(format("FreeRTOS config generate: replacing from %d to %d with '%s'", start, eol - 1, replacement)));
+
+                // Replace after the found item with the formatted value.
+                // Only do one replacement.
+                template_contents = template_contents.Mid(0, start) +
+                                    _T(context.Spaces.slice(0, 40 - name.len())) +
+                                    _T(replacement) +
+                                    template_contents.Mid(eol, template_contents.len() - eol);
+           }
+       }
+
+       context.AddProjectFile(User_conf_inc_dir,
+                              template_contents,
+                              NO_COMPILE_NO_LINK,
+                              null,
+                              "FreeRTOSConfig.h",
+                              /* generated */ true);
+    }
+
+    extradefines = [
+        "FreeRTOS",
+    ]
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareFreeRTOS());
+
+/////////////////////////////////////////////////////////////////////////////////
+// FreeRTOS memory management selector.
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareFreeRTOSmemory extends OptionalSoftware {
+    // Locations for processor-specific stuff
+    processor_support_by_family = {
+        F0 = "ARM_CM0",
+        F1 = "ARM_CM3",
+        F2 = "ARM_CM3",
+        F3 = "ARM_CM3",
+        F4 = "ARM_CM4F",
+        F7 = "ARM_CM7/r0p1",
+        L0 = "ARM_CM0",
+        L1 = "ARM_CM3",
+        L4 = "ARM_CM4F",
+    };
+
+    constructor() {
+        ::OptionalSoftware.constructor("FreeRTOS Memory", "FreeRTOS", "FreeRTOSmemory", "FreeRTOS Real-Time Memory config");
+        this.enabled = false;
+        this.has_enable = false;
+        this.single = true;
+    }
+
+    function is_visible() {
+        return this.enabled;
+    }
+
+    function set_enabled(context, enable) {
+        if (enable != this.enabled) {
+            context.ShowNotebookPageWindow(this.pageid, enable);
+        }
+        ::OptionalSoftware.set_enabled(context, enable);
+    }
+
+    function configure(context) {
+        ::OptionalSoftware.configure(context);
+
+        // Load files from folder 
+        local files = context.ReadDirContents(
+                          STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/portable/MemMang/",
+                          _T(Dot_C_Mask),
+                          _T("files;dirs;relative")
+                      );
+
+        if (files.GetCount() != 0) {
+            // Select the first one and none of the remainders
+            this.selections[files.Item(0).tostring()] <- true;
+
+            for(local i = 1; i < files.GetCount(); ++i) {
+                this.selections[files.Item(i).tostring()] <- false;
+            }
+        }
+    }
+
+    function generate(context) {
+        ::OptionalSoftware.generate(context);
+        foreach(file, selected in this.selections) {
+            if (selected) { 
+                local source = STM32_Thirdparty_folder + "FreeRTOS/Source/portable/MemMang/" + file;
+                context.AddProjectFile(context.FixupPathname("FreeRTOS/"),   // Target folder
+                                       context.FixupPathname(source),
+                                       COMPILE_AND_LINK,             // build flags
+                                       null                          // Copy file
+                                       );
+            }
+        }
+    }
+
+    addtomacros = [
+        {
+            // Add to before main
+            macro = "[MAIN_BEFORE]",
+            text = "static void ExampleThread(void const *pParams);\n",
+        },
+        {
+            // Add this file contents to the include contents.
+            macro = "[MAIN_CONTENTS]",
+            text = "\n" +
+                   "    // Create a task\n" +
+                   "    osThreadDef(Example, ExampleThread, osPriorityNormal, 0, configMINIMAL_STACK_SIZE * 2);\n" +
+                   "    osThreadCreate(osThread(Example), NULL);\n" +
+                   "\n" +
+                   "    // Start the FreeRTOS() scheduler\n" +
+                   "    osKernelStart();\n" +
+                   "    // Nothing runs after this\n",
+        },
+        {
+            macro = "[MAIN_AFTER]",
+            text = "\n" +
+                   "static void ExampleThread(void const *pParams)\n" +
+                   "{\n" +
+                   "    while(1)\n" +
+                   "    {\n" +
+                   "        // Do some work here\n" +
+                   "\n" +
+                   "        // Block the task for one second\n" +
+                   "        osDelay(1000);\n" +
+                   "    }\n" +
+                   "}\n",
+        },
+        {
+            // Add this file contents to the include contents.
+            macro = "[MAIN_INCLUDES]"
+            text = "#include \"cmsis_os.h\"\n" +
+                   "#include \"FreeRTOS.h\"\n",
+        },
+        {
+            macro = "[freertos]",
+            text = function(context) {
+                return context.processor_support_by_family[STM32_family_short_name.tostring()];
+            }
+        },
+    ]
+
+    addtoproject = [
+        {
+            // Main FreeRTOS source
+            compile_flags = COMPILE_AND_LINK,
+            mask = Dot_C_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/",
+            target = "FreeRTOS/",
+        },
+        {
+            // Main FreeRTOS includes
+            include = true,
+            compile_flags = NO_COMPILE_NO_LINK,
+            mask = Dot_H_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/include/",
+            template = { match = "_template.h", target = null },  // Don't copy _template.h files
+            target = "FreeRTOS/",
+        },
+        {
+            // FreeRTOS gcc-specific portable pieces by processor type
+            compile_flags = COMPILE_AND_LINK,
+            mask = Dot_C_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/portable/GCC/[freertos]/",
+            target = "FreeRTOS/PORT/",
+        },
+        {
+            // Includes for FreeRTOS gcc-specific portable pieces by processor type
+            include = true,
+            compile_flags = NO_COMPILE_NO_LINK,
+            mask = Dot_H_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/portable/GCC/[freertos]/",
+            target = "FreeRTOS/PORT/",
+        },
+        {
+            // CMSIS interfacing for the FreeRTOS
+            compile_flags = COMPILE_AND_LINK,
+            mask = Dot_C_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/CMSIS_RTOS/",
+            target = "FreeRTOS/CMSIS/",
+        },
+        {
+            // Includes for CMSIS interfacing for the FreeRTOS
+            include = true,
+            compile_flags = NO_COMPILE_NO_LINK,
+            mask = Dot_H_Mask,
+            source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/CMSIS_RTOS/",
+            target = "FreeRTOS/CMSIS/",
+        },
+    ];
+
+   // templates = [
+   //     {
+   //         // Copy the template for the FreeRTOS package, renaming it
+   //         compile_flags = NO_COMPILE_NO_LINK,
+   //         include = true,
+   //         source = STM32_Thirdparty_folder.tostring() + "FreeRTOS/Source/include/FreeRTOSConfig_template.h",
+   //         target = User_conf_inc_dir.tostring(),
+   //         output_name = "FreeRTOSConfig.h",
+   //     },
+   // ];
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareFreeRTOSmemory());
+
+/////////////////////////////////////////////////////////////////////////////////
+// USB Device class libraries
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareUsbDeviceLibs extends OptionalSoftware {
+    constructor() {
+        ::OptionalSoftware.constructor("USB Device Libs", "STM32_USB_Device_Library", "USBDeviceLibs", "USB Device class library");
+        this.enabled = false;
+    }
+
+    function configure(context) {
+        ::OptionalSoftware.configure(context);
+
+        // Load classes from folder 
+        local classes = context.ReadDirContents(STM32_ST_folder + "STM32_USB_Device_Library/Class/",
+                                                _T("*"),
+                                                _T("dirs;keep_dirs;relative;no_recurse"));
+
+        for(local i = 0; i < classes.GetCount(); ++i) {
+            this.selections[classes.Item(i).tostring()] <- false;
+        }
+    }
+
+    function generate(context) {
+        ::OptionalSoftware.generate(context);
+
+        local folder = STM32_ST_folder + "STM32_USB_Device_Library/Class/";
+        local template_h = { match = "_template.h", replace = "" };
+        local template_c = { match = "_template.c", replace = "" };
+
+        foreach(usbclass, selected in this.selections) {
+            if (selected) { 
+                context.AddProjectFilesFromFolder(context.FixupPathname("USB_Device/"),
+                                                  context.FixupPathname(folder + usbclass + "/Inc/"),
+                                                  _T(Dot_H_Mask),
+                                                  template_h,
+                                                  NO_COMPILE_NO_LINK,
+                                                  null,
+                                                  _T("dirs;files;relative"));
+
+                context.AddProjectFilesFromFolder(context.FixupPathname("USB_Device/"),
+                                                  context.FixupPathname(folder + usbclass + "/Src/"),
+                                                  _T(Dot_C_Mask),
+                                                  template_c,
+                                                  COMPILE_AND_LINK,
+                                                  null,
+                                                  _T("dirs;files;relative"));
+             }
+         }
+    }
+
+    definemacros = [
+        {
+            // Add this macro to fix up the include file name
+            macro = "\"stm32fxxx.h\"",
+            text = function(context) {
+                return "\"" + System_basename + ".h\"";
+            }
+        },
+        {
+            // Add this macro to fix up the include file name
+            macro = "\"stm32lxxx.h\"",
+            text = function(context) {
+                return "\"" + System_basename + ".h\"";
+            }
+        },
+    ]
+
+    addtoproject = [
+        {
+            // Main Device Library source
+            compile_flags = COMPILE_AND_LINK,
+            source = STM32_ST_folder.tostring() + "STM32_USB_Device_Library/Core/Src/",
+            target = "USB_Device/",
+            mask = Dot_C_Mask,
+            template = { match = "_template.c", replace = ".c", target = User_conf_src_dir.tostring() },
+        },
+        {
+            // Main Device Library includes
+            include = true,
+            compile_flags = NO_COMPILE_NO_LINK,
+            source = STM32_ST_folder.tostring() + "STM32_USB_Device_Library/Core/Inc/",
+            target = "USB_Device/",
+            mask = Dot_H_Mask,
+            template = { match = "_template.h", replace = ".h", target = User_conf_inc_dir.tostring() },
+        },
+    ]
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareUsbDeviceLibs());
+
+
+/////////////////////////////////////////////////////////////////////////////////
+// USB Host class libraries
+/////////////////////////////////////////////////////////////////////////////////
+class OptionalSoftwareUsbHostLibs extends OptionalSoftware {
+    constructor() {
+        ::OptionalSoftware.constructor("USB Host Libs", "STM32_USB_Host_Library", "USBHostLibs", "USB Host class library");
+        this.enabled = false;
+    }
+
+    function configure(context) {
+        ::OptionalSoftware.configure(context);
+
+        // Load classes from folder 
+        local classes = context.ReadDirContents(STM32_ST_folder + "STM32_USB_Host_Library/Class/",
+                                                _T("*"),
+                                                _T("dirs;keep_dirs;relative;no_recurse"));
+
+        for(local i = 0; i < classes.GetCount(); ++i) {
+            this.selections[classes.Item(i).tostring()] <- false;
+        }
+    }
+
+    function generate(context) {
+        ::OptionalSoftware.generate(context);
+
+        local folder = STM32_ST_folder + "STM32_USB_Host_Library/Class/";
+        local template_h = { match = "_template.h", replace = "" };
+        local template_c = { match = "_template.c", replace = "" };
+
+        foreach(usbclass, selected in this.selections) {
+            if (selected) { 
+                context.AddProjectFilesFromFolder(context.FixupPathname("USB_Host/"),
+                                                  context.FixupPathname(folder + usbclass + "/Inc/"),
+                                                  _T(Dot_H_Mask),
+                                                  template_h,
+                                                  NO_COMPILE_NO_LINK,
+                                                  null,
+                                                  _T("dirs;files;relative"));
+
+                context.AddProjectFilesFromFolder(context.FixupPathname("USB_Host/"),
+                                                  context.FixupPathname(folder + usbclass + "/Src/"),
+                                                  _T(Dot_C_Mask),
+                                                  template_c,
+                                                  COMPILE_AND_LINK,
+                                                  null,
+                                                  _T("dirs;files;relative"));
+            }
+        }
+    }
+
+    definemacros = [
+        {
+            // Add this macro to fix up the include file name
+            macro = "\"stm32fxxx.h\"",
+            text = function(context) {
+                return "\"" + System_basename + ".h\"";
+            }
+        },
+        {
+            // Add this macro to fix up the include file name
+            macro = "\"stm32lxxx.h\"",
+            text = function(context) {
+                return "\"" + System_basename + ".h\"";
+            }
+        },
+    ]
+
+    addtoproject = [
+        {
+            // Main Host Library source
+            compile_flags = COMPILE_AND_LINK,
+            source = STM32_ST_folder.tostring() + "STM32_USB_Host_Library/Core/Src/",
+            target = "USB_Host/",
+            mask = Dot_C_Mask,
+            template = { match = "_template.c", replace = ".c", target = User_conf_src_dir.tostring() },
+        },
+        {
+            // Main Host Library includes
+            include = true,
+            compile_flags = NO_COMPILE_NO_LINK,
+            source = STM32_ST_folder.tostring() + "STM32_USB_Host_Library/Core/Inc/",
+            target = "USB_Host/",
+            mask = Dot_H_Mask,
+            template = { match = "_template.h", replace = ".h", target = User_conf_inc_dir.tostring() },
+        },
+    ]
+}
+///////////////////// Add to optional software list ////////////////////////
+Optional_Software.append(OptionalSoftwareUsbHostLibs());
+

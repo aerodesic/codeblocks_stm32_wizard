@@ -1,14 +1,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 // Define processor type information:
 //    name:       Name of the processor as shown in dialogs
-//    arch:       Arm architecture flag
+//    arch:       Arm architecture flag (might not be needed)
 //    cpu:        Cpu flag
-//    class:      The processor name
+//    family:     The processor family name
 //    defines:    An optional list of other defines
 //    ccoptions:  A list of options added to compiler call
 //    ldoptions:  A list of options added to linker call
-//    memory:     A table of memory segment names; each has a value of a list
+//    segments:   A table of memory segment names; each has a value of a list
 //                containing a base address and length.
+//                Special case for 'segments': if value is a string, it is
+//                the name of another processor whose segment value is used.
+//                This can lead to a chain, but the length is limited to
+//                5 'indirect' cycles
 //    minheap:    A value defining the amount of heap to allocate
 //    minstack:   A value defining the amount of stack to allocate
 ///////////////////////////////////////////////////////////////////////////////
@@ -16,9 +20,11 @@ ProcessorsDefault <- {
   default_values = {
     minheap    = 0x400,
     minstack   = 0x200,
+    // These seem to be needed for any configuration
+    halcheck   = [ "CORTEX", "GPIO", "FLASH", "RCC", "PWR" ],
   },
   F0 = {
-    arch       = "armv7e-m",
+    //arch       = "armv7e-m",
     cpu        = "cortex-m0",
     ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
     ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
@@ -58,7 +64,6 @@ ProcessorsDefault <- {
     cpu        = "cortex-m4",
     ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
     ldoptions  = [ "-mthumb", "-mfloat-abi=hard", "-mfpu=fpv4-sp-d16" ],
-    halcheck   = [ "CORTEX", "GPIO", "FLASH", "RCC", "PWR" ],
     segments   = { RAM    = { base = 0x20000000, size = 0x00010000, mode = "rw" },
                    CCM    = { base = 0x10000000, size = 0x00010000, mode = "rw" },
                    FLASH  = { base = 0x08000000, size = 0x00010000, mode = "rx" },
@@ -94,7 +99,6 @@ ProcessorsDefault <- {
     cpu        = "cortex-m3",
     ccoptions  = [ "-mthumb", "-mlittle-endian", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
     ldoptions  = [ "-mthumb", "-mfloat-abi=soft", "-mfpu=fpv4-sp-d16" ],
-    halcheck   = [ "CORTEX", "GPIO", "FLASH", "RCC", "PWR" ],
     segments   = {
                     FLASH  = { base = 0x08000000, size = 32*1024,   mode = "rx" },
                     EEPROM = { base = 0x08080000, size = 2*1024,    mode = "rx" },
@@ -1256,6 +1260,46 @@ Processors <- {
     STM32F405ZG = {
         family = "STM32F405xx",
     },
+
+    STM32F413CH = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413MH = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413RH = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413VH = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413ZH = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413CG = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413MG = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413RG = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413VG = {
+        family = "STM32F413xx",
+    }
+
+    STM32F413ZG = {
+        family = "STM32F413xx",
+    }
 
     STM32F415RG = {
         family = "STM32F415xx",
@@ -2833,6 +2877,10 @@ Boards <- {
     STM32F429I_Discovery   = [ "STM32F429xx" ],
     STM32F401RE_Nucleo     = [ "STM32F401xE" ],
     STM32F411RE_Nucleo     = [ "STM32F411xE" ],
+    STM32F412G_Discovery   = [ "STM32F412xG" ],
+    STM32F412ZH_Nucleo     = [ "STM32F412ZH" ],
+    STM32F413H_Discovery   = [ "STM32F413xH" ],
+    STM32F413ZH_Discovery  = [ "STM32F413ZH" ],
     STM32446E_EVAL         = [ "STM32F446xx" ],
     STM32F446E_Nucleo      = [ "STM32F446xx" ],
     STM32469I_EVAL         = [ "STM32F469xx" ],

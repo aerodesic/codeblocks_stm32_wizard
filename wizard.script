@@ -3,7 +3,7 @@
 // stm32 project wizard
 //
 // Author: Gary Oliver <go@aerodesic.com
-// Copyright 2016, GPL 2.0.
+// Copyright 2017, GPL 2.0.
 //
 // This module will handle code generation from a standard STM32 "cube" library base.
 // The user must supply the name of a 'base' folder containing the STM32Cube_FW*
@@ -2288,13 +2288,24 @@ function GetProcessorSegments(processor, level = 5) {
         if (level >= 0) {
             segments = GetProcessorSegments(segments, level - 1);
         } else {
-            // Should happen normally unless too many indirects,
-            // since the default action will pull a defule from
-            // the family table.
+            // Should happen normally unless too many indirects.
             segments = null;
         }
     }
-//dumpVariable("GetProcessorSegments + '" + processor + "'", segments);
+
+    if (segments != null) {
+        segments = clone segments; 
+
+        // extract last character of processor name string to create FLASH size
+        local code = "flash_" + processor.slice(processor.len() - 1, processor.len());
+
+        if (code in DefaultFlashSizes) {
+            segments.FLASH <- DefaultFlashSizes[code];
+        } else {
+            segments.FLASH <- DefaultFlashSizes["flash_default"];
+        }
+    }
+
     return segments;
 }
 
